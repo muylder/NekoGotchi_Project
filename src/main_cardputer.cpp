@@ -42,6 +42,36 @@
 #include "esp_wifi_types.h"
 #include "bluetooth_attacks.h"
 
+// ==================== NOVOS RECURSOS AVANÇADOS ====================
+#include "m5gotchi_theme_system.h"
+#include "m5gotchi_battle_system.h"
+#include "m5gotchi_minigames_expanded.h"
+#include "m5gotchi_wifi_analyzer.h"
+#include "m5gotchi_web_dashboard.h"
+#include "m5gotchi_mobile_app.h"
+#include "m5gotchi_channel_analyzer.h"
+#include "m5gotchi_pwnagotchi_detector.h"
+#include "m5gotchi_gps_wardriving.h"
+#include "m5gotchi_ai_companion.h"
+#include "m5gotchi_advanced_protocols.h"
+#include "m5gotchi_visual_effects.h"
+#include "m5gotchi_arcade_games.h"
+#include "m5gotchi_advanced_pentesting.h"
+#include "m5gotchi_universal_controls.h"
+
+// ==================== DETECÇÃO AUTOMÁTICA DEVICE ====================
+#if defined(M5CARDPUTER) || defined(ARDUINO_M5Stack_CARDPUTER)
+    #define CARDPUTER
+#endif
+
+// ==================== MEGA EXPANSION PACK ====================
+#include "m5gotchi_ai_companion.h"
+#include "m5gotchi_advanced_protocols.h"
+#include "m5gotchi_visual_effects.h"
+#include "m5gotchi_arcade_games.h"
+#include "m5gotchi_advanced_pentesting.h"
+#include "m5gotchi_mobile_companion.h"
+
 // ==================== CONFIGURAÇÕES CARDPUTER ====================
 #define SCREEN_WIDTH 240
 #define SCREEN_HEIGHT 135
@@ -62,13 +92,29 @@ enum OperationMode {
     MODE_EVIL_PORTAL,
     MODE_CLONE_DEAUTH,
     MODE_BLUETOOTH,
+    MODE_THEME_SYSTEM,
+    MODE_BATTLE_SYSTEM,
+    MODE_MINIGAMES,
+    MODE_WIFI_ANALYZER,
+    MODE_WEB_DASHBOARD,
+    MODE_MOBILE_APP,
+    MODE_CHANNEL_ANALYZER,
+    MODE_PWNAGOTCHI_DETECTOR,
+    MODE_GPS_WARDRIVING,
+    MODE_AI_COMPANION,
+    MODE_ADVANCED_PROTOCOLS,
+    MODE_VISUAL_EFFECTS,
+    MODE_ARCADE_GAMES,
+    MODE_ADVANCED_PENTESTING,
     MODE_MENU
 };
 
 // ==================== VARIÁVEIS GLOBAIS ====================
 OperationMode currentMode = MODE_MENU;
-int menuSelection = 0;  // Seleção no menu (0=Handshake, 1=Clone, 2=Portal, 3=Bluetooth)
+int menuSelection = 0;  // Seleção no menu principal
 int subMenuSelection = 0;  // Seleção em submenus
+int menuPage = 0;  // Página do menu (0=pentest, 1=advanced, 2=fun)
+const int MAX_MENU_ITEMS_PER_PAGE = 6;  // Máximo de itens por página
 
 // Handshake Capture
 const uint8_t PRIORITY_CHANNELS[] = {1, 6, 11};
@@ -112,6 +158,23 @@ File pcapFile;
 bool sdCardEnabled = false;
 int fileCounter = 1;
 unsigned long currentFileSize = 0;
+
+// ==================== INSTÂNCIAS DOS OBJETOS ====================
+BluetoothAttacks bleAttacks;
+M5GotchiThemeSystem themeManager;
+M5GotchiBattleSystem battleSystem;
+M5GotchiGameManagerExpanded gameManagerExpanded;
+M5GotchiWiFiAnalyzer wifiAnalyzer;
+M5GotchiWebDashboard webDashboard;
+M5GotchiMobileApp mobileApp;
+M5GotchiChannelAnalyzer channelAnalyzer;
+M5GotchiPwnagotchiDetector pwnagotchiDetector;
+M5GotchiGPSWardriving gpsWardriving;
+M5GotchiAICompanion aiCompanion;
+M5GotchiAdvancedProtocols advancedProtocols;
+M5GotchiVisualEffects visualEffects;
+M5GotchiArcadeGames arcadeGames;
+M5GotchiAdvancedPentesting advancedPentesting;
 
 // ==================== ESTRUTURAS ====================
 typedef struct {
@@ -167,40 +230,71 @@ void drawStatusBar(const char* text, uint16_t color = WHITE) {
 
 // ==================== MENU PRINCIPAL CARDPUTER ====================
 void displayMenuCompact() {
-    drawHeaderCompact("M5GOTCHI PRO - CARDPUTER", CYAN);
+    const char* pageNames[] = {"PENTEST", "ADVANCED", "FUN & GAMES"};
+    drawHeaderCompact(("M5GOTCHI PRO - " + String(pageNames[menuPage])).c_str(), CYAN);
     
     M5.Display.setTextSize(1);
     
-    int y = 25;
-    const char* menuItems[] = {
-        "Handshake Capture",
-        "Clone + Deauth",
-        "Evil Portal",
-        "Bluetooth Attacks"
+    // Definir itens por página
+    const char* pentestItems[] = {
+        "Handshake Capture", "Clone + Deauth", "Evil Portal", 
+        "Bluetooth Attacks", "Channel Analyzer", "Pwnagotchi Detector"
     };
     
-    for (int i = 0; i < 4; i++) {
+    const char* advancedItems[] = {
+        "WiFi Analyzer Pro", "GPS Wardriving", "AI Companion", 
+        "Advanced Protocols", "Visual Effects", "Advanced Pentesting"
+    };
+    
+    const char* funItems[] = {
+        "Arcade Games", "Mini Games", "Theme System", 
+        "Battle System", "Web Dashboard", "Mobile App"
+    };
+    
+    const char** currentItems;
+    int itemCount;
+    
+    switch (menuPage) {
+        case 0: // Pentest
+            currentItems = pentestItems;
+            itemCount = 6;
+            break;
+        case 1: // Advanced
+            currentItems = advancedItems;
+            itemCount = 6;
+            break;
+        case 2: // Fun
+            currentItems = funItems;
+            itemCount = 6;
+            break;
+        default:
+            currentItems = pentestItems;
+            itemCount = 4;
+    }
+    
+    int y = 22;
+    for (int i = 0; i < itemCount; i++) {
         if (i == menuSelection) {
-            M5.Display.fillRect(0, y, SCREEN_WIDTH, 18, DARKGREEN);
+            M5.Display.fillRect(0, y, SCREEN_WIDTH, 16, DARKGREEN);
             M5.Display.setTextColor(WHITE, DARKGREEN);
-            M5.Display.setCursor(5, y + 4);
+            M5.Display.setCursor(5, y + 2);
             M5.Display.print("> ");
         } else {
             M5.Display.setTextColor(WHITE, BLACK);
-            M5.Display.setCursor(5, y + 4);
+            M5.Display.setCursor(5, y + 2);
             M5.Display.print("  ");
         }
         
-        M5.Display.print(menuItems[i]);
-        y += 20;
+        M5.Display.print(currentItems[i]);
+        y += 16;
     }
     
-    y += 5;
+    // Status do sistema
     M5.Display.setTextColor(YELLOW, BLACK);
-    M5.Display.setCursor(5, y);
-    M5.Display.printf("SD Card: %s", sdCardEnabled ? "OK" : "FAIL");
+    M5.Display.setCursor(5, 110);
+    M5.Display.printf("SD: %s | Page: %d/3", sdCardEnabled ? "OK" : "FAIL", menuPage + 1);
     
-    drawStatusBar("UP/DN: Navigate | ENTER: Select", CYAN);
+    drawStatusBar("UP/DN: Navigate | L/R: Page | ENTER: Select", CYAN);
 }
 
 // ==================== HANDSHAKE CAPTURE ====================
@@ -714,35 +808,110 @@ void displayBluetoothMenu() {
         M5.Display.printf("Status: IDLE");
     }
     
-    drawStatusBar("UP/DN: Select | ENTER: Start", MAGENTA);
+    drawUniversalStatusBar();
 }
 
-// ==================== KEYBOARD HANDLER CARDPUTER ====================
-void handleKeyboard() {
+// ==================== CONTROLE UNIVERSAL ====================
+void handleBasicModuleControls(int action, int& selection, int maxItems) {
+    switch (action) {
+        case ACTION_UP:
+            selection = (selection - 1 + maxItems) % maxItems;
+            break;
+        case ACTION_DOWN:
+            selection = (selection + 1) % maxItems;
+            break;
+        case ACTION_SELECT:
+            // Ação básica - cada módulo pode sobrescrever
+            Serial.printf("Selected item: %d\n", selection);
+            break;
+    }
+}
+
+void drawUniversalStatusBar() {
+    #ifdef CARDPUTER
+    if (currentMode == MODE_MENU) {
+        drawStatusBar("↑↓: Navigate | ←→: Pages | ⏎: Select", CYAN);
+    } else {
+        drawStatusBar("↑↓: Navigate | ⏎: Select | ESC: Back", MAGENTA);
+    }
+    #else
+    if (currentMode == MODE_MENU) {
+        drawStatusBar("🅰️: Back | 🅱️: Select | 🆚: Pages", CYAN);
+    } else {
+        drawStatusBar("🅰️: Back | 🅱️: Select | 🆚: Action", MAGENTA);
+    }
+    #endif
+}
+
+int getControlAction() {
     M5.update();
     
+    #ifdef CARDPUTER
     if (M5Cardputer.Keyboard.isChange()) {
         if (M5Cardputer.Keyboard.isPressed()) {
             Keyboard_Class::KeysState status = M5Cardputer.Keyboard.keysState();
             String key = String(status.word.data());
             
-            // ====== MENU PRINCIPAL ======
-            if (currentMode == MODE_MENU) {
-                // Navegar para cima
-                if (key == "`") {  // Up arrow
-                    menuSelection = (menuSelection - 1 + 4) % 4;
-                    displayMenuCompact();
-                }
-                // Navegar para baixo
-                else if (key == ";") {  // Down arrow
-                    menuSelection = (menuSelection + 1) % 4;
-                    displayMenuCompact();
-                }
-                // Confirmar seleção
-                else if (status.enter) {
+            if (key == "`") return ACTION_UP;          // Up arrow
+            if (key == ";") return ACTION_DOWN;        // Down arrow  
+            if (key == ",") return ACTION_LEFT;        // Left arrow
+            if (key == ".") return ACTION_RIGHT;       // Right arrow
+            if (status.enter) return ACTION_SELECT;    // Enter
+            if (status.del) return ACTION_BACK;        // ESC/Delete
+        }
+    }
+    #else
+    // M5Stack Core controls
+    if (M5.BtnA.wasPressed()) return ACTION_BACK;     // Button A = Back
+    if (M5.BtnB.wasPressed()) return ACTION_SELECT;   // Button B = Select  
+    if (M5.BtnC.wasPressed()) return ACTION_RIGHT;    // Button C = Right/Next
+    
+    // Para navegação Up/Down em M5Stack, usar A+C ou B+C
+    static bool upPressed = false, downPressed = false;
+    if (M5.BtnA.isPressed() && M5.BtnC.wasPressed()) return ACTION_UP;
+    if (M5.BtnB.isPressed() && M5.BtnC.wasPressed()) return ACTION_DOWN;
+    #endif
+    
+    return ACTION_NONE;
+}
+
+// ==================== KEYBOARD HANDLER UNIVERSAL ====================
+void handleKeyboard() {
+    int action = getControlAction();
+            
+    // ====== MENU PRINCIPAL ======
+    if (currentMode == MODE_MENU) {
+        switch (action) {
+            case ACTION_UP:
+                menuSelection = (menuSelection - 1 + 6) % 6;
+                displayMenuCompact();
+                drawUniversalStatusBar();
+                break;
+            case ACTION_DOWN:
+                menuSelection = (menuSelection + 1) % 6;
+                displayMenuCompact();
+                drawUniversalStatusBar();
+                break;
+            case ACTION_LEFT:
+                menuPage = (menuPage - 1 + 3) % 3;
+                menuSelection = 0;
+                displayMenuCompact();
+                drawUniversalStatusBar();
+                break;
+            case ACTION_RIGHT:
+                menuPage = (menuPage + 1) % 3;
+                menuSelection = 0;
+                displayMenuCompact();  
+                drawUniversalStatusBar();
+                break;
+            case ACTION_SELECT: {
                     subMenuSelection = 0;  // Reset submenu
                     
-                    switch (menuSelection) {
+                    // Calcular o item global baseado na página
+                    int globalSelection = (menuPage * 6) + menuSelection;
+                    
+                    switch (globalSelection) {
+                        // ===== PÁGINA PENTEST =====
                         case 0:  // Handshake Capture
                             currentMode = MODE_HANDSHAKE_CAPTURE;
                             drawHeaderCompact("HANDSHAKE CAPTURE");
@@ -780,201 +949,425 @@ void handleKeyboard() {
                                 displayMenuCompact();
                             }
                             break;
+                            
+                        case 4:  // Channel Analyzer
+                            currentMode = MODE_CHANNEL_ANALYZER;
+                            channelAnalyzer.start();
+                            Serial.println("Mode: Channel Analyzer");
+                            break;
+                            
+                        case 5:  // Pwnagotchi Detector
+                            currentMode = MODE_PWNAGOTCHI_DETECTOR;
+                            pwnagotchiDetector.start();
+                            Serial.println("Mode: Pwnagotchi Detector");
+                            break;
+                            
+                        // ===== PÁGINA ADVANCED =====
+                        case 6:  // WiFi Analyzer Pro
+                            currentMode = MODE_WIFI_ANALYZER;
+                            wifiAnalyzer.start();
+                            Serial.println("Mode: WiFi Analyzer Pro");
+                            break;
+                            
+                        case 7:  // GPS Wardriving
+                            currentMode = MODE_GPS_WARDRIVING;
+                            gpsWardriving.start();
+                            Serial.println("Mode: GPS Wardriving");
+                            break;
+                            
+                        case 8:  // AI Companion
+                            currentMode = MODE_AI_COMPANION;
+                            aiCompanion.start();
+                            Serial.println("Mode: AI Companion");
+                            break;
+                            
+                        case 9:  // Advanced Protocols
+                            currentMode = MODE_ADVANCED_PROTOCOLS;
+                            advancedProtocols.start();
+                            Serial.println("Mode: Advanced Protocols");
+                            break;
+                            
+                        case 10:  // Visual Effects
+                            currentMode = MODE_VISUAL_EFFECTS;
+                            visualEffects.start();
+                            Serial.println("Mode: Visual Effects");
+                            break;
+                            
+                        case 11:  // Advanced Pentesting
+                            currentMode = MODE_ADVANCED_PENTESTING;
+                            advancedPentesting.start();
+                            Serial.println("Mode: Advanced Pentesting");
+                            break;
+                            
+                        // ===== PÁGINA FUN =====
+                        case 12:  // Arcade Games
+                            currentMode = MODE_ARCADE_GAMES;
+                            arcadeGames.start();
+                            Serial.println("Mode: Arcade Games");
+                            break;
+                            
+                        case 13:  // Mini Games
+                            currentMode = MODE_MINIGAMES;
+                            gameManagerExpanded.start();
+                            Serial.println("Mode: Mini Games");
+                            break;
+                            
+                        case 14:  // Theme System
+                            currentMode = MODE_THEME_SYSTEM;
+                            themeManager.start();
+                            Serial.println("Mode: Theme System");
+                            break;
+                            
+                        case 15:  // Battle System
+                            currentMode = MODE_BATTLE_SYSTEM;
+                            battleSystem.start();
+                            Serial.println("Mode: Battle System");
+                            break;
+                            
+                        case 16:  // Web Dashboard
+                            currentMode = MODE_WEB_DASHBOARD;
+                            webDashboard.start();
+                            Serial.println("Mode: Web Dashboard");
+                            break;
+                            
+                        case 17:  // Mobile App
+                            currentMode = MODE_MOBILE_APP;
+                            mobileApp.start();
+                            Serial.println("Mode: Mobile App");
+                            break;
+                            
+                        default:
+                            // Funcionalidade não implementada ainda
+                            M5.Display.fillScreen(BLACK);
+                            M5.Display.setTextColor(YELLOW);
+                            M5.Display.setCursor(50, 60);
+                            M5.Display.println("Coming Soon!");
+                            delay(1500);
+                            displayMenuCompact();
+                            break;
                     }
                 }
             }
             
-            // ====== HANDSHAKE CAPTURE ======
-            else if (currentMode == MODE_HANDSHAKE_CAPTURE) {
-                // Navegar para cima
-                if (key == "`") {
+                break;
+            case ACTION_BACK:
+                // Não faz nada no menu principal
+                break;
+        }
+    }
+    
+    // ====== HANDSHAKE CAPTURE ======
+    else if (currentMode == MODE_HANDSHAKE_CAPTURE) {
+        switch (action) {
+            case ACTION_UP:
+                subMenuSelection = (subMenuSelection - 1 + 3) % 3;
+                break;
+            case ACTION_DOWN:
+                subMenuSelection = (subMenuSelection + 1) % 3;
+                break;
+            case ACTION_SELECT:
+                switch (subMenuSelection) {
+                    case 0:  // Toggle Mode
+                        usePriorityChannelsOnly = !usePriorityChannelsOnly;
+                        break;
+                    case 1:  // Reset Counters
+                        packetCount = 0;
+                        eapolCount = 0;
+                        pmkidCount = 0;
+                        break;
+                    case 2:  // Back to Menu
+                        esp_wifi_set_promiscuous(false);
+                        if (pcapFile) pcapFile.close();
+                        WiFi.mode(WIFI_STA);
+                        currentMode = MODE_MENU;
+                        menuSelection = 0;
+                        displayMenuCompact();
+                        break;
+                }
+                break;
+            case ACTION_BACK:
+                esp_wifi_set_promiscuous(false);
+                if (pcapFile) pcapFile.close();
+                WiFi.mode(WIFI_STA);
+                currentMode = MODE_MENU;
+                menuSelection = 0;
+                displayMenuCompact();
+                break;
+        }
+    }
+            
+    
+    // ====== CLONE & DEAUTH ======
+    else if (currentMode == MODE_CLONE_DEAUTH) {
+        switch (action) {
+            case ACTION_UP:
+                if (subMenuSelection == 0 && selectedNetwork > 0) {
+                    selectedNetwork--;
+                } else {
                     subMenuSelection = (subMenuSelection - 1 + 3) % 3;
                 }
-                // Navegar para baixo
-                else if (key == ";") {
+                break;
+            case ACTION_DOWN:
+                if (subMenuSelection == 0 && selectedNetwork < networkCount - 1) {
+                    selectedNetwork++;
+                } else {
                     subMenuSelection = (subMenuSelection + 1) % 3;
                 }
-                // Executar ação
-                else if (status.enter) {
-                    switch (subMenuSelection) {
-                        case 0:  // Toggle Mode
-                            usePriorityChannelsOnly = !usePriorityChannelsOnly;
-                            break;
-                        case 1:  // Reset Counters
-                            packetCount = 0;
-                            eapolCount = 0;
-                            pmkidCount = 0;
-                            break;
-                        case 2:  // Back to Menu
-                            esp_wifi_set_promiscuous(false);
-                            if (pcapFile) pcapFile.close();
+                break;
+            case ACTION_SELECT:
+                switch (subMenuSelection) {
+                    case 0:  // Clone Network
+                        cloneNetwork();
+                        break;
+                    case 1:  // Toggle Deauth
+                        deauthActive = !deauthActive;
+                        if (!deauthActive) {
                             WiFi.mode(WIFI_STA);
-                            currentMode = MODE_MENU;
-                            menuSelection = 0;
-                            displayMenuCompact();
-                            break;
-                    }
+                        }
+                        break;
+                    case 2:  // Back to Menu
+                        deauthActive = false;
+                        WiFi.mode(WIFI_STA);
+                        currentMode = MODE_MENU;
+                        menuSelection = 0;
+                        displayMenuCompact();
+                        break;
                 }
-                // ESC = voltar ao menu
-                else if (status.del) {
-                    esp_wifi_set_promiscuous(false);
-                    if (pcapFile) pcapFile.close();
-                    WiFi.mode(WIFI_STA);
-                    currentMode = MODE_MENU;
-                    menuSelection = 0;
-                    displayMenuCompact();
-                }
+                break;
+            case ACTION_BACK:
+                deauthActive = false;
+                WiFi.mode(WIFI_STA);
+                currentMode = MODE_MENU;
+                menuSelection = 0;
+                displayMenuCompact();
+                break;
+        }
+    }
             }
             
-            // ====== CLONE & DEAUTH ======
-            else if (currentMode == MODE_CLONE_DEAUTH) {
-                // Navegar para cima
-                if (key == "`") {
-                    if (subMenuSelection == 0 && selectedNetwork > 0) {
-                        // Navegando na lista de redes
-                        selectedNetwork--;
-                    } else {
-                        // Navegando no menu de ações
-                        subMenuSelection = (subMenuSelection - 1 + 3) % 3;
-                    }
+    
+    // ====== EVIL PORTAL ======
+    else if (currentMode == MODE_EVIL_PORTAL) {
+        switch (action) {
+            case ACTION_UP:
+                subMenuSelection = (subMenuSelection - 1 + 2) % 2;
+                break;
+            case ACTION_DOWN:
+                subMenuSelection = (subMenuSelection + 1) % 2;
+                break;
+            case ACTION_SELECT:
+                switch (subMenuSelection) {
+                    case 0:  // Change Template
+                        if (portalHTMLPath == "/portal.html") {
+                            portalHTMLPath = "/portal_netflix.html";
+                        } else if (portalHTMLPath == "/portal_netflix.html") {
+                            portalHTMLPath = "/portal_facebook.html";
+                        } else if (portalHTMLPath == "/portal_facebook.html") {
+                            portalHTMLPath = "/portal_google.html";
+                        } else {
+                            portalHTMLPath = "/portal.html";
+                        }
+                        Serial.printf("HTML changed: %s\n", portalHTMLPath.c_str());
+                        break;
+                    case 1:  // Back to Menu
+                        portalActive = false;
+                        server.stop();
+                        dnsServer.stop();
+                        WiFi.mode(WIFI_STA);
+                        currentMode = MODE_MENU;
+                        menuSelection = 0;
+                        displayMenuCompact();
+                        break;
                 }
-                // Navegar para baixo
-                else if (key == ";") {
-                    if (subMenuSelection == 0 && selectedNetwork < networkCount - 1) {
-                        // Navegando na lista de redes
-                        selectedNetwork++;
-                    } else {
-                        // Navegando no menu de ações
-                        subMenuSelection = (subMenuSelection + 1) % 3;
-                    }
-                }
-                // Executar ação
-                else if (status.enter) {
-                    switch (subMenuSelection) {
-                        case 0:  // Clone Network
-                            cloneNetwork();
-                            break;
-                        case 1:  // Toggle Deauth
-                            deauthActive = !deauthActive;
-                            if (!deauthActive) {
-                                WiFi.mode(WIFI_STA);
-                            }
-                            break;
-                        case 2:  // Back to Menu
-                            deauthActive = false;
-                            WiFi.mode(WIFI_STA);
-                            currentMode = MODE_MENU;
-                            menuSelection = 0;
-                            displayMenuCompact();
-                            break;
-                    }
-                }
-                // ESC = voltar ao menu
-                else if (status.del) {
-                    deauthActive = false;
-                    WiFi.mode(WIFI_STA);
-                    currentMode = MODE_MENU;
-                    menuSelection = 0;
-                    displayMenuCompact();
-                }
-            }
+                break;
+            case ACTION_BACK:
+                portalActive = false;
+                server.stop();
+                dnsServer.stop();
+                WiFi.mode(WIFI_STA);
+                currentMode = MODE_MENU;
+                menuSelection = 0;
+                displayMenuCompact();
+                break;
+        }
+    }
             
-            // ====== EVIL PORTAL ======
-            else if (currentMode == MODE_EVIL_PORTAL) {
-                // Navegar para cima
-                if (key == "`") {
-                    subMenuSelection = (subMenuSelection - 1 + 2) % 2;
+    
+    // ====== BLUETOOTH ATTACKS ======
+    else if (currentMode == MODE_BLUETOOTH) {
+        switch (action) {
+            case ACTION_UP:
+                subMenuSelection = (subMenuSelection - 1 + 5) % 5;
+                displayBluetoothMenu();
+                break;
+            case ACTION_DOWN:
+                subMenuSelection = (subMenuSelection + 1) % 5;
+                displayBluetoothMenu();
+                break;
+            case ACTION_SELECT:
+                switch (subMenuSelection) {
+                    case 0:  // Sour Apple
+                        bleAttacks.startSourApple();
+                        Serial.println("Starting Sour Apple Attack");
+                        break;
+                    case 1:  // Samsung Spam
+                        bleAttacks.startSamsungSpam();
+                        Serial.println("Starting Samsung Spam");
+                        break;
+                    case 2:  // Google Fast Pair
+                        bleAttacks.startGoogleSpam();
+                        Serial.println("Starting Google Spam");
+                        break;
+                    case 3:  // Microsoft Swiftpair
+                        bleAttacks.startMicrosoftSpam();
+                        Serial.println("Starting Microsoft Spam");
+                        break;
+                    case 4:  // Stop Attack
+                        bleAttacks.stop();
+                        Serial.println("Stopped BLE Attack");
+                        break;
                 }
-                // Navegar para baixo
-                else if (key == ";") {
-                    subMenuSelection = (subMenuSelection + 1) % 2;
-                }
-                // Executar ação
-                else if (status.enter) {
-                    switch (subMenuSelection) {
-                        case 0:  // Change Template
-                            if (portalHTMLPath == "/portal.html") {
-                                portalHTMLPath = "/portal_netflix.html";
-                            } else if (portalHTMLPath == "/portal_netflix.html") {
-                                portalHTMLPath = "/portal_facebook.html";
-                            } else if (portalHTMLPath == "/portal_facebook.html") {
-                                portalHTMLPath = "/portal_google.html";
-                            } else {
-                                portalHTMLPath = "/portal.html";
-                            }
-                            Serial.printf("HTML changed: %s\n", portalHTMLPath.c_str());
-                            break;
-                        case 1:  // Back to Menu
-                            portalActive = false;
-                            server.stop();
-                            dnsServer.stop();
-                            WiFi.mode(WIFI_STA);
-                            currentMode = MODE_MENU;
-                            menuSelection = 0;
-                            displayMenuCompact();
-                            break;
-                    }
-                }
-                // ESC = voltar ao menu
-                else if (status.del) {
-                    portalActive = false;
-                    server.stop();
-                    dnsServer.stop();
-                    WiFi.mode(WIFI_STA);
-                    currentMode = MODE_MENU;
-                    menuSelection = 0;
-                    displayMenuCompact();
-                }
-            }
-            
-            // ====== BLUETOOTH ATTACKS ======
-            else if (currentMode == MODE_BLUETOOTH) {
-                // Navegar para cima
-                if (key == "`") {
-                    subMenuSelection = (subMenuSelection - 1 + 5) % 5;
-                    displayBluetoothMenu();
-                }
-                // Navegar para baixo
-                else if (key == ";") {
-                    subMenuSelection = (subMenuSelection + 1) % 5;
-                    displayBluetoothMenu();
-                }
-                // Executar ação
-                else if (status.enter) {
-                    switch (subMenuSelection) {
-                        case 0:  // Sour Apple
-                            bleAttacks.startSourApple();
-                            Serial.println("Starting Sour Apple Attack");
-                            break;
-                        case 1:  // Samsung Spam
-                            bleAttacks.startSamsungSpam();
-                            Serial.println("Starting Samsung Spam");
-                            break;
-                        case 2:  // Google Fast Pair
-                            bleAttacks.startGoogleSpam();
-                            Serial.println("Starting Google Spam");
-                            break;
-                        case 3:  // Microsoft Swiftpair
-                            bleAttacks.startMicrosoftSpam();
-                            Serial.println("Starting Microsoft Spam");
-                            break;
-                        case 4:  // Stop Attack
-                            bleAttacks.stop();
-                            Serial.println("Stopped BLE Attack");
-                            break;
-                    }
-                    delay(100);
-                    displayBluetoothMenu();
-                }
-                // ESC = voltar ao menu
-                else if (status.del) {
-                    bleAttacks.stop();
-                    bleAttacks.end();
-                    currentMode = MODE_MENU;
-                    menuSelection = 0;
-                    displayMenuCompact();
-                }
-            }
+                delay(100);
+                displayBluetoothMenu();
+                break;
+            case ACTION_BACK:
+                bleAttacks.stop();
+                bleAttacks.end();
+                currentMode = MODE_MENU;
+                menuSelection = 0;
+                displayMenuCompact();
+                break;
+        }
+    }
+                
+    
+    // ====== MÓDULOS AVANÇADOS ======
+    // Todos os módulos avançados agora usam o sistema universal de controles
+    else if (currentMode == MODE_THEME_SYSTEM) {
+        themeManager.handleUniversalControls(action);
+        if (action == ACTION_BACK) {
+            currentMode = MODE_MENU;
+            themeManager.stop();
+            displayMenuCompact();
+        }
+    }
+    else if (currentMode == MODE_BATTLE_SYSTEM) {
+        battleSystem.handleUniversalControls(action);
+        if (action == ACTION_BACK) {
+            currentMode = MODE_MENU;
+            battleSystem.stop();
+            displayMenuCompact();
+        }
+    }
+    else if (currentMode == MODE_MINIGAMES) {
+        // Controles básicos para mini games
+        static int gameSelection = 0;
+        switch (action) {
+            case ACTION_UP:
+                gameSelection = (gameSelection - 1 + 5) % 5;
+                break;
+            case ACTION_DOWN:
+                gameSelection = (gameSelection + 1) % 5;
+                break;
+            case ACTION_SELECT:
+                // Start selected game
+                break;
+        }
+        gameManagerExpanded.update();
+        if (action == ACTION_BACK) {
+            currentMode = MODE_MENU;
+            gameManagerExpanded.stop();
+            displayMenuCompact();
+        }
+    }
+    else if (currentMode == MODE_WIFI_ANALYZER) {
+        wifiAnalyzer.handleUniversalControls(action);
+        if (action == ACTION_BACK) {
+            currentMode = MODE_MENU;
+            wifiAnalyzer.stop();
+            displayMenuCompact();
+        }
+    }
+    else if (currentMode == MODE_WEB_DASHBOARD) {
+        webDashboard.handleUniversalControls(action);
+        if (action == ACTION_BACK) {
+            currentMode = MODE_MENU;
+            webDashboard.stop();
+            displayMenuCompact();
+        }
+    }
+    else if (currentMode == MODE_MOBILE_APP) {
+        mobileApp.handleUniversalControls(action);
+        if (action == ACTION_BACK) {
+            currentMode = MODE_MENU;
+            mobileApp.stop();
+            displayMenuCompact();
+        }
+    }
+                
+    else if (currentMode == MODE_CHANNEL_ANALYZER) {
+        channelAnalyzer.handleUniversalControls(action);
+        if (action == ACTION_BACK) {
+            currentMode = MODE_MENU;
+            channelAnalyzer.stop();
+            displayMenuCompact();
+        }
+    }
+    else if (currentMode == MODE_PWNAGOTCHI_DETECTOR) {
+        pwnagotchiDetector.handleUniversalControls(action);
+        if (action == ACTION_BACK) {
+            currentMode = MODE_MENU;
+            pwnagotchiDetector.stop();
+            displayMenuCompact();
+        }
+    }
+    else if (currentMode == MODE_GPS_WARDRIVING) {
+        gpsWardriving.handleUniversalControls(action);
+        if (action == ACTION_BACK) {
+            currentMode = MODE_MENU;
+            gpsWardriving.stop();
+            displayMenuCompact();
+        }
+    }
+    else if (currentMode == MODE_AI_COMPANION) {
+        aiCompanion.handleUniversalControls(action);
+        if (action == ACTION_BACK) {
+            currentMode = MODE_MENU;
+            aiCompanion.stop();
+            displayMenuCompact();
+        }
+    }
+    else if (currentMode == MODE_ADVANCED_PROTOCOLS) {
+        advancedProtocols.handleUniversalControls(action);
+        if (action == ACTION_BACK) {
+            currentMode = MODE_MENU;
+            advancedProtocols.stop();
+            displayMenuCompact();
+        }
+    }
+    else if (currentMode == MODE_VISUAL_EFFECTS) {
+        visualEffects.handleUniversalControls(action);
+        if (action == ACTION_BACK) {
+            currentMode = MODE_MENU;
+            visualEffects.stop();
+            displayMenuCompact();
+        }
+    }
+    else if (currentMode == MODE_ARCADE_GAMES) {
+        arcadeGames.handleUniversalControls(action);
+        if (action == ACTION_BACK) {
+            currentMode = MODE_MENU;
+            arcadeGames.stop();
+            displayMenuCompact();
+        }
+    }
+                
+    else if (currentMode == MODE_ADVANCED_PENTESTING) {
+        advancedPentesting.handleUniversalControls(action);
+        if (action == ACTION_BACK) {
+            currentMode = MODE_MENU;
+            advancedPentesting.stop();
+            displayMenuCompact();
         }
     }
 }
@@ -1002,15 +1395,51 @@ void setup() {
         sdCardEnabled = false;
     }
     
+    // Inicializar sistemas avançados
+    themeManager.init();
+    battleSystem.init();
+    gameManagerExpanded.init();
+    wifiAnalyzer.init();
+    webDashboard.init();
+    mobileApp.init();
+    channelAnalyzer.init();
+    pwnagotchiDetector.init();
+    gpsWardriving.init();
+    aiCompanion.init();
+    advancedProtocols.init(); 
+    visualEffects.init();
+    arcadeGames.init();
+    advancedPentesting.init();
+    
     displayMenuCompact();
     
     Serial.println("===================================");
     Serial.println("M5GOTCHI PRO - CARDPUTER EDITION");
     Serial.println("===================================");
-    Serial.println("Keyboard Controls:");
-    Serial.println("UP/DOWN arrows: Navigate");
-    Serial.println("ENTER: Confirm/Select");
-    Serial.println("ESC (DEL): Back to menu");
+    Serial.println("Advanced Features Loaded:");
+    Serial.println("✅ Theme System | ✅ Battle System");
+    Serial.println("✅ Mini Games | ✅ WiFi Analyzer");
+    Serial.println("✅ Web Dashboard | ✅ Mobile App");
+    Serial.println("✅ Channel Analyzer | ✅ Pwnagotchi Detector");
+    Serial.println("✅ GPS Wardriving | ✅ AI Companion");
+    Serial.println("✅ Advanced Protocols | ✅ Visual Effects");
+    Serial.println("✅ Arcade Games | ✅ Advanced Pentesting");
+    Serial.println("===================================");
+    
+    #ifdef CARDPUTER
+    Serial.println("🎮 Cardputer Controls:");
+    Serial.println("↑↓ arrows (`,;): Navigate menus");
+    Serial.println("←→ arrows (,.): Change pages");
+    Serial.println("⏎ ENTER: Confirm/Select");
+    Serial.println("🚫 ESC (DEL): Back to menu");
+    #else
+    Serial.println("🎮 M5Stack Controls:");
+    Serial.println("🅰️ Button A: Back/Cancel");
+    Serial.println("🅱️ Button B: Select/Confirm");
+    Serial.println("🆚 Button C: Next/Right");
+    Serial.println("🅰️+🆚: Navigate Up");
+    Serial.println("🅱️+🆚: Navigate Down");
+    #endif
     Serial.println("===================================");
 }
 
@@ -1060,6 +1489,62 @@ void loop() {
             
         case MODE_MENU:
             // Menu já desenhado
+            break;
+            
+        case MODE_THEME_SYSTEM:
+            themeManager.update();
+            break;
+            
+        case MODE_BATTLE_SYSTEM:
+            battleSystem.update();
+            break;
+            
+        case MODE_MINIGAMES:
+            gameManagerExpanded.update();
+            break;
+            
+        case MODE_WIFI_ANALYZER:
+            wifiAnalyzer.update();
+            break;
+            
+        case MODE_WEB_DASHBOARD:
+            webDashboard.update();
+            break;
+            
+        case MODE_MOBILE_APP:
+            mobileApp.update();
+            break;
+            
+        case MODE_CHANNEL_ANALYZER:
+            channelAnalyzer.update();
+            break;
+            
+        case MODE_PWNAGOTCHI_DETECTOR:
+            pwnagotchiDetector.update();
+            break;
+            
+        case MODE_GPS_WARDRIVING:
+            gpsWardriving.update();
+            break;
+            
+        case MODE_AI_COMPANION:
+            aiCompanion.update();
+            break;
+            
+        case MODE_ADVANCED_PROTOCOLS:
+            advancedProtocols.update();
+            break;
+            
+        case MODE_VISUAL_EFFECTS:
+            visualEffects.update();
+            break;
+            
+        case MODE_ARCADE_GAMES:
+            arcadeGames.update();
+            break;
+            
+        case MODE_ADVANCED_PENTESTING:
+            advancedPentesting.update();
             break;
     }
     

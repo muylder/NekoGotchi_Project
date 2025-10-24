@@ -1,0 +1,47 @@
+/*
+ * TEMPLATE PARA ADICIONAR CONTROLES UNIVERSAIS
+ * Copie e cole este código em cada módulo antes do final da classe
+ */
+
+// ==================== CONTROLE UNIVERSAL ====================
+void handleUniversalControls(int action) {
+    switch (action) {
+        case ACTION_UP:
+            if (selectedItem > 0) selectedItem--;
+            else selectedItem = maxItems - 1; // Wrap around
+            redraw();
+            break;
+        case ACTION_DOWN:
+            selectedItem = (selectedItem + 1) % maxItems;
+            redraw();
+            break;
+        case ACTION_LEFT:
+            if (currentPage > 0) currentPage--;
+            selectedItem = 0;
+            redraw();
+            break;
+        case ACTION_RIGHT:
+            currentPage++;
+            selectedItem = 0;
+            redraw();
+            break;
+        case ACTION_SELECT:
+            executeCurrentSelection();
+            break;
+        // ACTION_BACK é tratado automaticamente no main
+    }
+}
+
+// Funções que cada módulo deve implementar:
+virtual void redraw() { 
+    // Redesenha a tela atual
+}
+
+virtual void executeCurrentSelection() { 
+    // Executa a ação do item selecionado
+}
+
+// Variáveis que cada módulo deve ter:
+int selectedItem = 0;
+int currentPage = 0;
+int maxItems = 5; // Ajustar conforme necessário
