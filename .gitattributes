@@ -1,0 +1,44 @@
+# Auto detect text files and normalize line endings to LF
+* text=auto eol=lf
+
+# Source code
+*.cpp text
+*.h text
+*.c text
+*.ino text
+*.py text
+*.sh text eol=lf
+
+# Documentation
+*.md text
+*.txt text
+*.html text
+*.css text
+*.js text
+
+# Config files
+*.ini text
+*.json text
+*.yml text
+*.yaml text
+Makefile text
+
+# Binary files
+*.bin binary
+*.elf binary
+*.hex binary
+*.a binary
+*.o binary
+*.jpg binary
+*.png binary
+*.gif binary
+
+# Archives
+*.zip binary
+*.tar.gz binary
+*.7z binary
+
+# Exclude from archive
+.gitignore export-ignore
+.gitattributes export-ignore
+.github export-ignore
