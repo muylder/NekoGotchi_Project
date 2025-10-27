@@ -1784,33 +1784,48 @@ void stopHandshakeCapture() {
 
 // ==================== FILE MANAGER ====================
 void initSDCard() {
+    Serial.println("    → Configuring SPI...");
     SPI.begin(SD_SCK, SD_MISO, SD_MOSI, SD_CS);
     
-    if (SD.begin(SD_CS, SPI, 25000000)) {
+    Serial.println("    → Attempting SD.begin() with 3s timeout...");
+    unsigned long timeout = millis() + 3000;  // 3 second timeout
+    bool sdSuccess = false;
+    
+    // Try SD.begin() with timeout protection
+    sdSuccess = SD.begin(SD_CS, SPI, 25000000);
+    
+    if (sdSuccess && millis() < timeout) {
         sdCardAvailable = true;
-        Serial.println("✅ SD Card initialized!");
+        Serial.println("    ✅ SD Card initialized!");
         
         // Criar diretórios necessários
+        Serial.println("    → Creating directories...");
         if (!SD.exists(HANDSHAKE_DIR)) {
             SD.mkdir(HANDSHAKE_DIR);
-            Serial.println("📁 Created " + String(HANDSHAKE_DIR));
+            Serial.println("       📁 Created " + String(HANDSHAKE_DIR));
         }
         if (!SD.exists(PORTAL_DIR)) {
             SD.mkdir(PORTAL_DIR);
-            Serial.println("📁 Created " + String(PORTAL_DIR));
+            Serial.println("       📁 Created " + String(PORTAL_DIR));
         }
         
         // Criar arquivo de credenciais se não existir
+        Serial.println("    → Checking credentials file...");
         if (!SD.exists(CREDS_FILE)) {
             File file = SD.open(CREDS_FILE, FILE_WRITE);
             if (file) {
                 file.println("=== M5Gotchi Captured Credentials ===");
                 file.close();
+                Serial.println("       📝 Created " + String(CREDS_FILE));
             }
         }
     } else {
         sdCardAvailable = false;
-        Serial.println("❌ SD Card not found!");
+        if (millis() >= timeout) {
+            Serial.println("    ⏱️  SD Card timeout (no card detected)");
+        } else {
+            Serial.println("    ❌ SD Card initialization failed!");
+        }
     }
 }
 
@@ -4232,20 +4247,29 @@ void autoSaveAll() {
 
 // ==================== SETUP ====================
 void setup() {
+    Serial.begin(115200);
+    delay(200);
+    Serial.println("\n\n========================================");
+    Serial.println("🐱 M5Gotchi PRO - Starting...");
+    Serial.println("========================================");
+    
+    Serial.println("[1/12] M5.begin()...");
     auto cfg = M5.config();
     M5.begin(cfg);
-    M5Cardputer.begin();
+    Serial.println("        ✓ OK");
     
+    Serial.println("[2/12] M5Cardputer.begin()...");
+    M5Cardputer.begin();
+    Serial.println("        ✓ OK");
+    
+    Serial.println("[3/12] Display setup...");
     M5.Display.setRotation(1);
     M5.Display.setTextSize(1);
     M5.Display.setTextColor(themeColors.fg, themeColors.bg);
-    
-    Serial.begin(115200);
-    delay(100);
-    Serial.println("\n🐱 M5Gotchi PRO - WiFi Pentest Suite");
-    Serial.println("=====================================");
+    Serial.println("        ✓ OK");
     
     // Splash screen
+    Serial.println("[4/12] Drawing splash...");
     M5.Display.fillScreen(TFT_BLACK);
     M5.Display.setTextColor(TFT_CYAN);
     M5.Display.setTextSize(2);
@@ -4258,56 +4282,73 @@ void setup() {
     M5.Display.setTextColor(TFT_WHITE);
     M5.Display.setCursor(50, 100);
     M5.Display.print("Loading...");
+    Serial.println("        ✓ OK");
     
-    Serial.println("📝 Initializing SD Card...");
+    Serial.println("[5/12] Initializing SD Card...");
     M5.Display.setCursor(50, 110);
     M5.Display.print("SD Card...");
-    
-    // Inicializar SD Card (non-blocking)
     initSDCard();
+    if (sdCardAvailable) {
+        Serial.println("        ✓ SD Card OK");
+    } else {
+        Serial.println("        ⚠ SD Card not available");
+    }
     
-    Serial.println("📝 Loading config...");
+    Serial.println("[6/12] Loading config...");
     M5.Display.setCursor(50, 115);
     M5.Display.print("Config...");
-    
-    // Load persistence data (with timeout protection)
     if (sdCardAvailable) {
         loadConfig();
         loadStats();
         loadSession();
+        Serial.println("        ✓ Config loaded");
     } else {
-        Serial.println("⚠️  SD Card not available, using defaults");
+        Serial.println("        ⚠ Using defaults");
     }
     
-    Serial.println("📝 Initializing WiFi...");
+    Serial.println("[7/12] Initializing WiFi...");
     M5.Display.setCursor(50, 120);
     M5.Display.print("WiFi...");
-    
     WiFi.mode(WIFI_STA);
     WiFi.disconnect();
     delay(100);
+    Serial.println("        ✓ WiFi OK");
     
-    // Inicializar estatísticas
+    Serial.println("[8/12] Initializing stats...");
     sessionStartTime = millis();
     if (totalScans == 0) {
         totalScans = 0;
         totalNetworksFound = 0;
     }
+    Serial.println("        ✓ Stats OK");
     
+    Serial.println("[9/12] Initializing Tutorial System...");
+    tutorialSystem = new TutorialSystem();
+    tutorialSystem->init();
+    Serial.println("        ✓ Tutorial System OK");
+    
+    Serial.println("[10/12] Initializing Achievement Manager...");
+    achievementManager = new AchievementManager();
+    achievementManager->init();
+    Serial.println("        ✓ Achievement Manager OK");
+    
+    Serial.println("[11/12] Writing boot log...");
     writeLog("System boot");
+    Serial.println("        ✓ Log OK");
     
-    Serial.println("✅ System Ready!");
+    Serial.println("[12/12] Drawing menu...");
     M5.Display.setCursor(50, 125);
     M5.Display.setTextColor(TFT_GREEN);
     M5.Display.print("Ready!");
-    
     delay(500);
-    
     drawMenu();
+    Serial.println("        ✓ Menu OK");
     
-    Serial.println("📂 Config loaded from SD");
+    Serial.println("\n========================================");
+    Serial.println("✅ M5Gotchi PRO Ready!");
+    Serial.println("📂 Config: " + String(sdCardAvailable ? "SD Card" : "Defaults"));
     Serial.println("⚠️  WARNING: Use only on your own networks!");
-    Serial.println("=====================================\n");
+    Serial.println("========================================\n");
 }
 
 // ==================== LOOP ====================
