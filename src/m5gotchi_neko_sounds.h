@@ -1,13 +1,61 @@
-/*
- * 🎵 M5GOTCHI NEKO SOUND SYSTEM v1.0
- * Sistema de sons kawaii temáticos para cada ação!
+/**
+ * @file m5gotchi_neko_sounds.h
+ * @brief 🎵 Kawaii Sound System with Personality-Based Audio Feedback
+ * @version 1.0
+ * @date 2025-10-26
  * 
- * Features:
- * - 7 personalidades com sons únicos
- * - Feedback sonoro para todas as ações
- * - Diferentes tipos de purr e meow
- * - 8-bit kawaii melodies
- * - Volume control com emoji slider
+ * @details Comprehensive audio feedback system providing themed sound effects
+ * for all user interactions and system events. Features 7 unique personality
+ * profiles, each with distinct frequency patterns, harmonics, and melodies.
+ * 
+ * **Features:**
+ * - 7 personality sound profiles (Kuromi, Nya-Null, Miku, Sakura, etc.)
+ * - 10 sound types (success, alert, error, discovery, etc.)
+ * - 8-bit kawaii melodies for special events
+ * - Continuous purr system with intensity control
+ * - Volume control (0-100%) with emoji slider
+ * - Non-blocking sound playback
+ * - Frequency-based synthesis using M5Speaker
+ * 
+ * **Sound Types:**
+ * - Purr Success: Smooth low frequency (achievement unlocked)
+ * - Meow Alert: Sharp mid frequency (warning notification)
+ * - Hiss Error: Harsh high frequency (operation failed)
+ * - Chirp Discovery: Quick ascending tones (found network/device)
+ * - Nya Notification: Gentle trill (general notification)
+ * - Purr Idle: Soft rumble (background happiness)
+ * - Meow Question: Rising tone (awaiting input)
+ * - Trill Excitement: Fast vibrato (high energy event)
+ * - Growl Angry: Deep pulsing (multiple failures)
+ * - Purr Love: Complex harmonics (maximum happiness)
+ * 
+ * **Personalities:**
+ * - Kuromi (🖤): Dark gothic tones, deep bass
+ * - Nya-Null (🔴): Aggressive sharp sounds
+ * - Miku (💙): Soft melodic, high harmonics
+ * - Sakura (🌸): Cute high-pitched, gentle
+ * - Kawaii-Root (👑): Royal majestic, rich tones
+ * - Neko-Zero (⚫): Deep mysterious, sub-bass
+ * - Cipher (🔐): Electronic robotic, synthetic
+ * 
+ * @copyright (c) 2025 M5Gotchi Pro Project
+ * @license MIT License
+ * 
+ * @example
+ * ```cpp
+ * M5GotchiNekoSounds sounds;
+ * sounds.init();
+ * sounds.setPersonality(MIKU_SOUND);
+ * sounds.setVolume(75);
+ * 
+ * // Play sound
+ * sounds.playSound(SOUND_PURR_SUCCESS);
+ * 
+ * // Start purring (continuous)
+ * sounds.startPurring(80);  // 80% intensity
+ * delay(2000);
+ * sounds.stopPurring();
+ * ```
  */
 
 #ifndef M5GOTCHI_NEKO_SOUNDS_H
@@ -17,27 +65,38 @@
 #include "m5gotchi_universal_controls.h"
 
 // ==================== SOUND TYPES ====================
+
+/**
+ * @brief Sound effect types for different system events
+ * @details Each type has unique frequency patterns and harmonics
+ * based on the active personality profile.
+ */
 enum NekoSoundType {
-    SOUND_PURR_SUCCESS = 0,    // 😸 Successful hack
-    SOUND_MEOW_ALERT,          // 🙀 Alert/Warning
-    SOUND_HISS_ERROR,          // 😾 Error/Failure
-    SOUND_CHIRP_DISCOVERY,     // 😺 Found something
-    SOUND_NYA_NOTIFICATION,    // 🐱 General notification
-    SOUND_PURR_IDLE,           // 😴 Idle/Happy
-    SOUND_MEOW_QUESTION,       // 🤔 Need input
-    SOUND_TRILL_EXCITEMENT,    // 🤩 High energy
-    SOUND_GROWL_ANGRY,         // 👿 Failed multiple times
-    SOUND_PURR_LOVE           // 💕 Maximum happiness
+    SOUND_PURR_SUCCESS = 0,    ///< 😸 Successful operation (smooth, rewarding)
+    SOUND_MEOW_ALERT,          ///< 🙀 Warning or alert (sharp, attention-grabbing)
+    SOUND_HISS_ERROR,          ///< 😾 Error or failure (harsh, discordant)
+    SOUND_CHIRP_DISCOVERY,     ///< 😺 Found something interesting (ascending tones)
+    SOUND_NYA_NOTIFICATION,    ///< 🐱 General notification (gentle trill)
+    SOUND_PURR_IDLE,           ///< 😴 Background happiness (soft rumble)
+    SOUND_MEOW_QUESTION,       ///< 🤔 Awaiting user input (rising tone)
+    SOUND_TRILL_EXCITEMENT,    ///< 🤩 High energy event (fast vibrato)
+    SOUND_GROWL_ANGRY,         ///< 👿 Multiple failures (deep pulsing)
+    SOUND_PURR_LOVE           ///< 💕 Maximum happiness (complex harmonics)
 };
 
+/**
+ * @brief Personality sound profiles with unique audio characteristics
+ * @details Each personality has different base frequencies, harmonics,
+ * and emotional expression through sound.
+ */
 enum NekoPersonalitySound {
-    KUROMI_SOUND = 0,    // 🖤 Dark/Gothic tones
-    NYA_NULL_SOUND,      // 🔴 Aggressive/Sharp
-    MIKU_SOUND,          // 💙 Soft/Melodic
-    SAKURA_SOUND,        // 🌸 Cute/High pitch
-    KAWAII_ROOT_SOUND,   // 👑 Royal/Majestic
-    NEKO_ZERO_SOUND,     // ⚫ Deep/Mysterious
-    CIPHER_SOUND         // 🔐 Electronic/Robotic
+    KUROMI_SOUND = 0,    ///< 🖤 Dark/Gothic - deep bass, minor keys
+    NYA_NULL_SOUND,      ///< 🔴 Aggressive/Sharp - harsh tones, quick attacks
+    MIKU_SOUND,          ///< 💙 Soft/Melodic - gentle, rich harmonics
+    SAKURA_SOUND,        ///< 🌸 Cute/High pitch - bright, cheerful tones
+    KAWAII_ROOT_SOUND,   ///< 👑 Royal/Majestic - full spectrum, powerful
+    NEKO_ZERO_SOUND,     ///< ⚫ Deep/Mysterious - sub-bass, ominous
+    CIPHER_SOUND         ///< 🔐 Electronic/Robotic - synthetic, digital
 };
 
 // ==================== NEKO SOUND SYSTEM CLASS ====================

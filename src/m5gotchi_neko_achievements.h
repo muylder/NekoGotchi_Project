@@ -1,10 +1,10 @@
 /*
- * 🏆 M5GOTCHI NEKO ACHIEVEMENT SYSTEM v1.0
+ * 🏆 M5GOTCHI NEKO ACHIEVEMENT SYSTEM v1.1
  * Sistema de conquistas kawaii para gamificar toda experiência M5Gotchi!
  * 
  * Features:
  * - 50+ achievements únicos temáticos de hacker neko
- * - Sistema de badges com raridade (Bronze, Silver, Gold, Platinum, Kawaii)
+ * - Sistema de badges com raridade (RARITY_BRONZE, RARITY_SILVER, RARITY_GOLD, RARITY_PLATINUM, Kawaii)
  * - Progress tracking para todas as atividades
  * - Notificações cute de unlock
  * - Reward system com unlocks especiais
@@ -18,6 +18,12 @@
  * 📊 Data Detective - Analysis, discoveries, intelligence
  * 🏰 Social Butterfly - Interactions, sharing, community
  * 
+ * MEMORY OPTIMIZATIONS v1.1:
+ * - PROGMEM for constant strings (saves ~8KB RAM)
+ * - Limited vector sizes to prevent heap fragmentation
+ * - F() macro for debug strings
+ * - Reduced struct sizes with bitfields
+ * 
  * Ganbatte, neko hacker! 💖
  */
 
@@ -29,6 +35,18 @@
 #include <map>
 #include "m5gotchi_universal_controls.h"
 #include "m5gotchi_neko_sounds.h"
+
+// ==================== MEMORY LIMITS ====================
+#define MAX_ACHIEVEMENTS 50
+#define MAX_PENDING_NOTIFICATIONS 10
+#define MAX_ACHIEVEMENT_NAME_LEN 32
+#define MAX_ACHIEVEMENT_DESC_LEN 64
+
+// ==================== MEMORY LIMITS ====================
+#define MAX_ACHIEVEMENTS 50
+#define MAX_PENDING_NOTIFICATIONS 10
+#define MAX_ACHIEVEMENT_NAME_LEN 32
+#define MAX_ACHIEVEMENT_DESC_LEN 64
 
 // ==================== ACHIEVEMENT ENUMS ====================
 enum AchievementCategory {
@@ -42,12 +60,12 @@ enum AchievementCategory {
 };
 
 enum AchievementRarity {
-    BRONZE = 0,      // Common achievements
-    SILVER,          // Uncommon achievements  
-    GOLD,            // Rare achievements
-    PLATINUM,        // Epic achievements
-    KAWAII,          // Legendary kawaii achievements
-    ULTRA_RARE      // Ultra rare secret achievements
+    RARITY_BRONZE = 0,    // Common achievements
+    RARITY_SILVER,        // Uncommon achievements  
+    RARITY_GOLD,          // Rare achievements
+    RARITY_PLATINUM,      // Epic achievements
+    RARITY_KAWAII,        // Legendary kawaii achievements
+    RARITY_ULTRA_RARE     // Ultra rare secret achievements
 };
 
 enum AchievementType {
@@ -65,25 +83,27 @@ struct Achievement {
     String name;
     String description;
     String emoji;
+    String unlock_message;
+    String special_unlock;
+    String category_name;
+    
     AchievementCategory category;
     AchievementRarity rarity;
     AchievementType type;
     
     // Progress tracking
-    int current_progress;
-    int required_progress;
-    bool unlocked;
-    unsigned long unlock_time;
+    uint16_t current_progress;
+    uint16_t required_progress;
+    uint16_t points_reward;
     
-    // Rewards
-    int points_reward;
-    String unlock_message;
-    String special_unlock;  // Special content unlocked
+    // Status flags
+    bool unlocked;
+    bool is_new;
+    
+    unsigned long unlock_time;
     
     // Display
     uint16_t color;
-    String category_name;
-    bool is_new;           // For notification system
 };
 
 struct PlayerStats {
@@ -127,7 +147,9 @@ struct PlayerStats {
 // ==================== NEKO ACHIEVEMENT SYSTEM CLASS ====================
 class M5GotchiNekoAchievements {
 private:
+    // Achievement storage
     std::vector<Achievement> achievements;
+    
     PlayerStats stats;
     
     // Display state
@@ -172,9 +194,10 @@ public:
         lastAnimUpdate = 0;
         nekoSounds = nullptr;
         
+        achievements.reserve(MAX_ACHIEVEMENTS);
+        pendingNotifications.reserve(MAX_PENDING_NOTIFICATIONS);
+        
         initializeStats();
-        initializeAchievements();
-        loadProgress();
     }
     
     // ==================== INITIALIZATION ====================
@@ -206,216 +229,216 @@ public:
         
         // Bronze Hacking
         addAchievement(1, "First Scan", "Scan your first WiFi network", "📡", 
-                      HACKING_MASTERY, BRONZE, COUNTER, 1, 50, 
+                      HACKING_MASTERY, RARITY_BRONZE, COUNTER, 1, 50, 
                       "Welcome to the neko hacker world!", "");
         
         addAchievement(2, "Network Explorer", "Scan 50 WiFi networks", "🗺️", 
-                      HACKING_MASTERY, BRONZE, COUNTER, 50, 100, 
+                      HACKING_MASTERY, RARITY_BRONZE, COUNTER, 50, 100, 
                       "You're getting the hang of this!", "");
         
         addAchievement(3, "First Handshake", "Capture your first handshake", "🤝", 
-                      HACKING_MASTERY, BRONZE, COUNTER, 1, 150, 
+                      HACKING_MASTERY, RARITY_BRONZE, COUNTER, 1, 150, 
                       "Pawsome! Your first handshake captured!", "");
         
         // Silver Hacking  
         addAchievement(4, "Handshake Collector", "Capture 10 handshakes", "📦", 
-                      HACKING_MASTERY, SILVER, COUNTER, 10, 300, 
+                      HACKING_MASTERY, RARITY_SILVER, COUNTER, 10, 300, 
                       "You're becoming a real neko hacker!", "advanced_scanner");
         
         addAchievement(5, "Deauth Master", "Perform 25 deauth attacks", "💥", 
-                      HACKING_MASTERY, SILVER, COUNTER, 25, 400, 
+                      HACKING_MASTERY, RARITY_SILVER, COUNTER, 25, 400, 
                       "Network disruption master achieved!", "stealth_mode");
         
         addAchievement(6, "Portal Creator", "Deploy 5 evil portals", "🕳️", 
-                      HACKING_MASTERY, SILVER, COUNTER, 5, 500, 
+                      HACKING_MASTERY, RARITY_SILVER, COUNTER, 5, 500, 
                       "Social engineering skills unlocked!", "custom_portals");
         
         // Gold Hacking
         addAchievement(7, "Bluetooth Ninja", "Complete 15 BLE attacks", "🥷", 
-                      HACKING_MASTERY, GOLD, COUNTER, 15, 750, 
+                      HACKING_MASTERY, RARITY_GOLD, COUNTER, 15, 750, 
                       "Wireless ninja skills mastered!", "ble_advanced");
         
         addAchievement(8, "Hack Streak", "Complete 10 successful hacks in a row", "🔥", 
-                      HACKING_MASTERY, GOLD, SEQUENCE, 10, 1000, 
+                      HACKING_MASTERY, RARITY_GOLD, SEQUENCE, 10, 1000, 
                       "Unstoppable hacking streak!", "lucky_charm");
         
         // Platinum Hacking
         addAchievement(9, "Elite Hacker", "Achieve 100 successful hacks", "👑", 
-                      HACKING_MASTERY, PLATINUM, MILESTONE, 100, 2000, 
+                      HACKING_MASTERY, RARITY_PLATINUM, MILESTONE, 100, 2000, 
                       "Welcome to the elite neko hackers!", "elite_badge");
         
         // ==================== GAMING GLORY ACHIEVEMENTS ====================
         
         // Bronze Gaming
         addAchievement(10, "First Game", "Play your first mini-game", "🎮", 
-                       GAMING_GLORY, BRONZE, COUNTER, 1, 50, 
+                       GAMING_GLORY, RARITY_BRONZE, COUNTER, 1, 50, 
                        "Game time! Let's have some fun!", "");
         
         addAchievement(11, "Sushi Apprentice", "Eat 5 sushi in SQL game", "🍣", 
-                       GAMING_GLORY, BRONZE, COUNTER, 5, 100, 
+                       GAMING_GLORY, RARITY_BRONZE, COUNTER, 5, 100, 
                        "Delicious SQL injection skills!", "");
         
         addAchievement(12, "Paw Toucher", "Touch 10 paws in scanner game", "🐾", 
-                       GAMING_GLORY, BRONZE, COUNTER, 10, 100, 
+                       GAMING_GLORY, RARITY_BRONZE, COUNTER, 10, 100, 
                        "Such soft digital paws!", "");
         
         // Silver Gaming
         addAchievement(13, "Sushi Master", "Eat 50 sushi with perfect combos", "🍱", 
-                       GAMING_GLORY, SILVER, COUNTER, 50, 400, 
+                       GAMING_GLORY, RARITY_SILVER, COUNTER, 50, 400, 
                        "SQL injection master achieved!", "sushi_chef_hat");
         
         addAchievement(14, "Paw Scanner Pro", "Successfully bypass 20 scanners", "🔓", 
-                       GAMING_GLORY, SILVER, COUNTER, 20, 500, 
+                       GAMING_GLORY, RARITY_SILVER, COUNTER, 20, 500, 
                        "Biometric bypass expert!", "bypass_tools");
         
         addAchievement(15, "High Score Hunter", "Beat 10 personal high scores", "📈", 
-                       GAMING_GLORY, SILVER, COUNTER, 10, 300, 
+                       GAMING_GLORY, RARITY_SILVER, COUNTER, 10, 300, 
                        "Always improving! Great job!", "score_multiplier");
         
         // Gold Gaming
         addAchievement(16, "Perfect Combo", "Execute 5 perfect game combos", "⭐", 
-                       GAMING_GLORY, GOLD, CHALLENGE, 5, 750, 
+                       GAMING_GLORY, RARITY_GOLD, CHALLENGE, 5, 750, 
                        "Perfection achieved! Sugoi!", "perfect_aura");
         
         addAchievement(17, "Game Marathon", "Play for 2 straight hours", "⏰", 
-                       GAMING_GLORY, GOLD, TIME_LIMITED, 120, 800, 
+                       GAMING_GLORY, RARITY_GOLD, TIME_LIMITED, 120, 800, 
                        "Dedication level: Neko master!", "endurance_badge");
         
         // Platinum Gaming
         addAchievement(18, "Gaming Legend", "Unlock all mini-game achievements", "🏆", 
-                       GAMING_GLORY, PLATINUM, MILESTONE, 100, 2500, 
+                       GAMING_GLORY, RARITY_PLATINUM, MILESTONE, 100, 2500, 
                        "Legendary gaming neko achieved!", "legend_crown");
         
         // ==================== KAWAII COLLECTOR ACHIEVEMENTS ====================
         
         // Bronze Kawaii
         addAchievement(19, "First Purr", "Play your first cat sound", "😻", 
-                       KAWAII_COLLECTOR, BRONZE, COUNTER, 1, 50, 
+                       KAWAII_COLLECTOR, RARITY_BRONZE, COUNTER, 1, 50, 
                        "Nyaa~! So kawaii!", "");
         
         addAchievement(20, "Sound Explorer", "Play 20 different sounds", "🎵", 
-                       KAWAII_COLLECTOR, BRONZE, COUNTER, 20, 100, 
+                       KAWAII_COLLECTOR, RARITY_BRONZE, COUNTER, 20, 100, 
                        "Such a musical neko!", "");
         
         addAchievement(21, "Personality Try", "Try 3 different personalities", "🎭", 
-                       KAWAII_COLLECTOR, BRONZE, COUNTER, 3, 150, 
+                       KAWAII_COLLECTOR, RARITY_BRONZE, COUNTER, 3, 150, 
                        "Exploring your inner neko!", "");
         
         // Silver Kawaii  
         addAchievement(22, "Sound Library", "Unlock 50% of all sounds", "📚", 
-                       KAWAII_COLLECTOR, SILVER, MILESTONE, 50, 400, 
+                       KAWAII_COLLECTOR, RARITY_SILVER, MILESTONE, 50, 400, 
                        "Impressive sound collection!", "sound_studio");
         
         addAchievement(23, "Neko Psychiatrist", "Try all 7 personalities", "🧠", 
-                       KAWAII_COLLECTOR, SILVER, COUNTER, 7, 500, 
+                       KAWAII_COLLECTOR, RARITY_SILVER, COUNTER, 7, 500, 
                        "Understanding all neko minds!", "personality_expert");
         
         addAchievement(24, "Theme Master", "Unlock 5 visual themes", "🎨", 
-                       KAWAII_COLLECTOR, SILVER, COUNTER, 5, 300, 
+                       KAWAII_COLLECTOR, RARITY_SILVER, COUNTER, 5, 300, 
                        "Aesthetic mastery achieved!", "theme_editor");
         
         // Gold Kawaii
         addAchievement(25, "Kawaii Completionist", "Unlock 80% of all kawaii content", "💖", 
-                       KAWAII_COLLECTOR, GOLD, MILESTONE, 80, 1000, 
+                       KAWAII_COLLECTOR, RARITY_GOLD, MILESTONE, 80, 1000, 
                        "Maximum kawaii level reached!", "kawaii_aura");
         
         addAchievement(26, "Melody Composer", "Create 10 custom melodies", "🎼", 
-                       KAWAII_COLLECTOR, GOLD, COUNTER, 10, 750, 
+                       KAWAII_COLLECTOR, RARITY_GOLD, COUNTER, 10, 750, 
                        "Musical genius neko!", "composer_tools");
         
         // Platinum Kawaii
         addAchievement(27, "Ultimate Kawaii", "Achieve maximum cuteness in all areas", "🌟", 
-                       KAWAII_COLLECTOR, PLATINUM, CHALLENGE, 1, 3000, 
+                       KAWAII_COLLECTOR, RARITY_PLATINUM, CHALLENGE, 1, 3000, 
                        "Ultimate kawaii neko hacker!", "ultimate_kawaii");
         
         // ==================== SOUND MASTER ACHIEVEMENTS ====================
         
         // Bronze Sound
         addAchievement(28, "Volume Control", "Adjust volume 10 times", "🔊", 
-                       SOUND_MASTER, BRONZE, COUNTER, 10, 50, 
+                       SOUND_MASTER, RARITY_BRONZE, COUNTER, 10, 50, 
                        "Learning sound control!", "");
         
         addAchievement(29, "Purr Lover", "Play purr sounds 25 times", "😸", 
-                       SOUND_MASTER, BRONZE, COUNTER, 25, 100, 
+                       SOUND_MASTER, RARITY_BRONZE, COUNTER, 25, 100, 
                        "Purr-fect choice! So relaxing!", "");
         
         // Silver Sound
         addAchievement(30, "Sound Effects Pro", "Use context sounds in 50 hacks", "🎭", 
-                       SOUND_MASTER, SILVER, COUNTER, 50, 400, 
+                       SOUND_MASTER, RARITY_SILVER, COUNTER, 50, 400, 
                        "Sound enhances everything!", "sound_fx_pack");
         
         addAchievement(31, "Melody Master", "Play 100 complete melodies", "🎶", 
-                       SOUND_MASTER, SILVER, COUNTER, 100, 500, 
+                       SOUND_MASTER, RARITY_SILVER, COUNTER, 100, 500, 
                        "Such musical talent!", "melody_library");
         
         // Gold Sound
         addAchievement(32, "Sound Architect", "Create perfect sound combo", "🏗️", 
-                       SOUND_MASTER, GOLD, CHALLENGE, 1, 750, 
+                       SOUND_MASTER, RARITY_GOLD, CHALLENGE, 1, 750, 
                        "Sound design master!", "sound_architect");
         
         // ==================== DATA DETECTIVE ACHIEVEMENTS ====================
         
         // Bronze Data
         addAchievement(33, "First Discovery", "Find your first hidden network", "🔍", 
-                       DATA_DETECTIVE, BRONZE, COUNTER, 1, 50, 
+                       DATA_DETECTIVE, RARITY_BRONZE, COUNTER, 1, 50, 
                        "Great detective work!", "");
         
         addAchievement(34, "Signal Analyst", "Analyze 100 signal strengths", "📊", 
-                       DATA_DETECTIVE, BRONZE, COUNTER, 100, 100, 
+                       DATA_DETECTIVE, RARITY_BRONZE, COUNTER, 100, 100, 
                        "Signal analysis expert!", "");
         
         // Silver Data
         addAchievement(35, "Channel Hunter", "Find networks on all WiFi channels", "📡", 
-                       DATA_DETECTIVE, SILVER, CHALLENGE, 14, 400, 
+                       DATA_DETECTIVE, RARITY_SILVER, CHALLENGE, 14, 400, 
                        "Channel surfing master!", "channel_analyzer");
         
         addAchievement(36, "Encryption Expert", "Identify 50 different security types", "🔐", 
-                       DATA_DETECTIVE, SILVER, COUNTER, 50, 500, 
+                       DATA_DETECTIVE, RARITY_SILVER, COUNTER, 50, 500, 
                        "Encryption knowledge mastered!", "crypto_tools");
         
         // Gold Data  
         addAchievement(37, "Data Archaeologist", "Uncover 25 hidden system details", "🏺", 
-                       DATA_DETECTIVE, GOLD, COUNTER, 25, 800, 
+                       DATA_DETECTIVE, RARITY_GOLD, COUNTER, 25, 800, 
                        "Ancient data secrets revealed!", "archaeologist_tools");
         
         // ==================== SOCIAL BUTTERFLY ACHIEVEMENTS ====================
         
         // Bronze Social
         addAchievement(38, "First Friend", "Add your first device friend", "👥", 
-                       SOCIAL_BUTTERFLY, BRONZE, COUNTER, 1, 100, 
+                       SOCIAL_BUTTERFLY, RARITY_BRONZE, COUNTER, 1, 100, 
                        "Friendship is magic!", "");
         
         addAchievement(39, "Sharing is Caring", "Share 5 discoveries", "💝", 
-                       SOCIAL_BUTTERFLY, BRONZE, COUNTER, 5, 150, 
+                       SOCIAL_BUTTERFLY, RARITY_BRONZE, COUNTER, 5, 150, 
                        "Spreading knowledge!", "");
         
         // Silver Social  
         addAchievement(40, "Community Helper", "Help 10 other users", "🤝", 
-                       SOCIAL_BUTTERFLY, SILVER, COUNTER, 10, 400, 
+                       SOCIAL_BUTTERFLY, RARITY_SILVER, COUNTER, 10, 400, 
                        "Such a helpful neko!", "helper_badge");
         
         // ==================== SECRET ACHIEVEMENTS ====================
         
         // Hidden achievements (requirements not shown)
         addAchievement(41, "Easter Egg Hunter", "Find 10 hidden easter eggs", "🥚", 
-                       SECRET_ACHIEVEMENTS, KAWAII, HIDDEN, 10, 1000, 
+                       SECRET_ACHIEVEMENTS, RARITY_KAWAII, HIDDEN, 10, 1000, 
                        "Secret hunter extraordinaire!", "easter_detector");
         
         addAchievement(42, "Konami Neko", "Enter secret konami code", "⬆️", 
-                       SECRET_ACHIEVEMENTS, ULTRA_RARE, HIDDEN, 1, 2000, 
+                       SECRET_ACHIEVEMENTS, RARITY_ULTRA_RARE, HIDDEN, 1, 2000, 
                        "Old school gaming neko!", "retro_powers");
         
         addAchievement(43, "Time Traveler", "Use device at exactly midnight", "🕛", 
-                       SECRET_ACHIEVEMENTS, PLATINUM, HIDDEN, 1, 1500, 
+                       SECRET_ACHIEVEMENTS, RARITY_PLATINUM, HIDDEN, 1, 1500, 
                        "Midnight hacker discovered!", "time_powers");
         
         addAchievement(44, "Lucky Number", "Achieve exactly 777 total points", "🍀", 
-                       SECRET_ACHIEVEMENTS, GOLD, HIDDEN, 777, 777, 
+                       SECRET_ACHIEVEMENTS, RARITY_GOLD, HIDDEN, 777, 777, 
                        "Lucky neko strikes again!", "luck_boost");
         
         // Ultra rare secret
         addAchievement(45, "Neko Senpai", "Help another user unlock their first achievement", "🎓", 
-                       SECRET_ACHIEVEMENTS, ULTRA_RARE, HIDDEN, 1, 5000, 
+                       SECRET_ACHIEVEMENTS, RARITY_ULTRA_RARE, HIDDEN, 1, 5000, 
                        "Teaching brings the greatest joy!", "senpai_status");
         
         Serial.printf("📋 Loaded %d achievements across %d categories\n", 

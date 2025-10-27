@@ -1,14 +1,62 @@
-/*
- * 🍣 M5GOTCHI SUSHI SQL INJECTION GAME v1.0
- * Mini-game educativo para aprender SQL injection de forma kawaii!
+/**
+ * @file m5gotchi_sushi_sql_game.h
+ * @brief 🍣 Educational SQL Injection Learning Game (Kawaii Theme)
+ * @version 1.0
+ * @date 2025-10-26
  * 
- * Como jogar:
- * - Escolha seus hashis (chopsticks) = técnica de bypass
- * - Adicione wasabi = payload de injection
- * - "Coma" o sushi = execute a query
- * - Objetivo: Acessar dados secretos do "restaurante"
+ * @details Interactive educational game teaching SQL injection concepts through
+ * a playful sushi restaurant metaphor. Players choose "chopsticks" (bypass techniques),
+ * "wasabi" (payloads), and "sushi" (target queries) to learn about database security
+ * vulnerabilities in a safe, gamified environment.
  * 
- * Educational & Fun! 🎌
+ * **Game Concept:**
+ * - Chopsticks = Bypass/encoding techniques (URL, hex, unicode, blind)
+ * - Wasabi = SQL injection payloads (OR 1=1, UNION, stacked queries)
+ * - Sushi = Target database tables/queries (SELECT, WHERE, JOIN)
+ * - Goal = Extract secret data from "restaurant database"
+ * 
+ * **Educational Topics:**
+ * - Classic SQL injection (OR 1=1--)
+ * - UNION-based injection
+ * - Blind SQL injection (time-based, boolean-based)
+ * - Encoding bypasses (URL, hex, unicode)
+ * - Stacked queries
+ * - ORDER BY injection
+ * 
+ * **Features:**
+ * - 7 sushi types (difficulty levels)
+ * - 7 chopstick types (bypass methods)
+ * - 5 wasabi levels (payload complexity)
+ * - Progressive unlocking system
+ * - High score tracking
+ * - Animated eating sequences
+ * - Sound effects integration
+ * 
+ * **Game Flow:**
+ * 1. Main Menu
+ * 2. Select Chopsticks (bypass method)
+ * 3. Select Wasabi (payload)
+ * 4. Select Sushi (target)
+ * 5. Eating Animation
+ * 6. Result Screen (success/fail + data extracted)
+ * 7. High Scores
+ * 
+ * @warning Educational use only! Never use these techniques on real systems
+ * without explicit authorization. Unauthorized access is illegal.
+ * 
+ * @copyright (c) 2025 M5Gotchi Pro Project
+ * @license MIT License
+ * 
+ * @example
+ * ```cpp
+ * M5GotchiSushiSQLGame game;
+ * game.init(&nekoSounds);
+ * while (game.isRunning()) {
+ *     game.update();
+ *     game.render();
+ *     delay(50);
+ * }
+ * ```
  */
 
 #ifndef M5GOTCHI_SUSHI_SQL_GAME_H
@@ -20,115 +68,182 @@
 #include "m5gotchi_neko_sounds.h"
 
 // ==================== GAME ENUMS ====================
+
+/**
+ * @brief Sushi types representing different SQL query complexities
+ * @details Each sushi corresponds to a specific SQL operation or vulnerability type.
+ */
 enum SushiType {
-    SALMON_ROLL = 0,     // 🍣 Basic SELECT query
-    TUNA_ROLL,           // 🍤 WHERE clause
-    EEL_ROLL,            // 🍱 JOIN operation  
-    DRAGON_ROLL,         // 🐉 Complex query
-    RAINBOW_ROLL,        // 🌈 UNION injection
-    CALIFORNIA_ROLL,     // 🥑 ORDER BY injection
-    SPICY_ROLL          // 🌶️ Blind SQL injection
+    SALMON_ROLL = 0,     ///< 🍣 Basic SELECT query (difficulty: 1)
+    TUNA_ROLL,           ///< 🍤 WHERE clause bypass (difficulty: 2)
+    EEL_ROLL,            ///< 🍱 JOIN operation exploit (difficulty: 3)
+    DRAGON_ROLL,         ///< 🐉 Complex multi-table query (difficulty: 4)
+    RAINBOW_ROLL,        ///< 🌈 UNION injection (difficulty: 5)
+    CALIFORNIA_ROLL,     ///< 🥑 ORDER BY injection (difficulty: 3)
+    SPICY_ROLL          ///< 🌶️ Blind SQL injection (difficulty: 6)
 };
 
+/**
+ * @brief Chopstick types representing SQL bypass/encoding techniques
+ * @details Different methods to evade input validation and WAF filters.
+ */
 enum ChopsticksType {
-    BAMBOO_STICKS = 0,   // Basic injection
-    SILVER_STICKS,       // URL encoding bypass
-    GOLDEN_STICKS,       // Hex encoding bypass
-    DIAMOND_STICKS,      // Unicode bypass
-    NINJA_STICKS,        // Time-based blind
-    CYBER_STICKS,        // Boolean-based blind
-    KAWAII_STICKS       // Union-based injection
+    BAMBOO_STICKS = 0,   ///< Basic injection (no encoding)
+    SILVER_STICKS,       ///< URL encoding bypass (%27, %20)
+    GOLDEN_STICKS,       ///< Hex encoding bypass (0x...)
+    DIAMOND_STICKS,      ///< Unicode bypass (\u0027)
+    NINJA_STICKS,        ///< Time-based blind (SLEEP, WAITFOR)
+    CYBER_STICKS,        ///< Boolean-based blind (AND 1=1)
+    KAWAII_STICKS       ///< Union-based injection (UNION SELECT)
 };
 
+/**
+ * @brief Wasabi levels representing payload power/complexity
+ * @details Progression from simple to advanced SQL injection payloads.
+ */
 enum WasabiLevel {
-    NO_WASABI = 0,       // No payload
-    MILD_WASABI,         // ' OR 1=1--
-    MEDIUM_WASABI,       // UNION SELECT
-    HOT_WASABI,          // Stacked queries
-    NUCLEAR_WASABI       // Advanced payloads
+    NO_WASABI = 0,       ///< No payload (normal query)
+    MILD_WASABI,         ///< ' OR 1=1-- (authentication bypass)
+    MEDIUM_WASABI,       ///< UNION SELECT (data extraction)
+    HOT_WASABI,          ///< Stacked queries (; DROP TABLE)
+    NUCLEAR_WASABI       ///< Advanced payloads (second-order, NoSQL)
 };
 
+/**
+ * @brief Game state machine states
+ */
 enum GameState {
-    GAME_MENU = 0,
-    CHOPSTICKS_SELECT,
-    WASABI_SELECT,
-    SUSHI_SELECT,
-    EATING_ANIMATION,
-    RESULT_SCREEN,
-    HIGH_SCORES
+    GAME_MENU = 0,       ///< Main menu screen
+    CHOPSTICKS_SELECT,   ///< Selecting bypass method
+    WASABI_SELECT,       ///< Selecting payload
+    SUSHI_SELECT,        ///< Selecting target query
+    EATING_ANIMATION,    ///< Animated "eating" sequence
+    RESULT_SCREEN,       ///< Success/fail results
+    HIGH_SCORES         ///< Leaderboard display
 };
 
 // ==================== GAME STRUCTURES ====================
+
+/**
+ * @brief Sushi menu item data
+ * @details Represents a target database table/query with associated metadata.
+ */
 struct SushiItem {
-    String name;
-    String emoji;
-    String table_name;
-    String vulnerability;
-    int difficulty;
-    bool unlocked;
+    String name;              ///< Display name (e.g., "Salmon Roll")
+    String emoji;             ///< Visual emoji (e.g., "🍣")
+    String table_name;        ///< Target table name (e.g., "users")
+    String vulnerability;     ///< Vulnerable query component
+    int difficulty;           ///< Difficulty level (1-7)
+    bool unlocked;            ///< Whether player has unlocked this sushi
 };
 
+/**
+ * @brief Chopsticks (bypass method) data
+ * @details Represents an encoding or evasion technique.
+ */
 struct Chopsticks {
-    String name;
-    String emoji;
-    String bypass_method;
-    String description;
-    int effectiveness;
-    bool unlocked;
+    String name;              ///< Display name (e.g., "Silver Sticks")
+    String emoji;             ///< Visual emoji (e.g., "🥢")
+    String bypass_method;     ///< Technical name (e.g., "URL Encoding")
+    String description;       ///< Short explanation of technique
+    int effectiveness;        ///< Power level (1-10)
+    bool unlocked;            ///< Whether player has unlocked this method
 };
 
+/**
+ * @brief Wasabi (payload) data
+ * @details Represents an SQL injection payload.
+ */
 struct WasabiPayload {
-    String name;
-    String emoji;
-    String payload;
-    String description;
-    int power_level;
-    bool unlocked;
+    String name;              ///< Display name (e.g., "Hot Wasabi")
+    String emoji;             ///< Visual emoji (e.g., "🌶️")
+    String payload;           ///< Actual SQL payload (e.g., "' OR 1=1--")
+    String description;       ///< Explanation of what payload does
+    int power_level;          ///< Effectiveness rating (1-10)
+    bool unlocked;            ///< Whether player has unlocked this payload
 };
 
+/**
+ * @brief Player score data for leaderboard
+ */
 struct GameScore {
-    String player_name;
-    int total_score;
-    int sushi_eaten;
-    int tables_pwned;
-    String favorite_combo;
+    String player_name;       ///< Player name (default: "Neko Hacker")
+    int total_score;          ///< Cumulative points
+    int sushi_eaten;          ///< Total successful injections
+    int tables_pwned;         ///< Unique tables accessed
+    String favorite_combo;    ///< Most used chopsticks+wasabi combo
 };
 
 // ==================== SUSHI SQL GAME CLASS ====================
+
+/**
+ * @class M5GotchiSushiSQLGame
+ * @brief Educational SQL injection learning game with kawaii theme
+ * 
+ * @details Gamified SQL injection tutorial using sushi restaurant metaphor.
+ * Players learn about authentication bypass, UNION injection, blind SQL,
+ * and various encoding techniques through interactive gameplay. Features
+ * progressive difficulty, unlockable items, and high score tracking.
+ * 
+ * **Gameplay Mechanics:**
+ * - Choose chopsticks (bypass technique)
+ * - Select wasabi (payload power)
+ * - Pick sushi (target vulnerability)
+ * - "Eat" to execute injection
+ * - View results and extracted data
+ * 
+ * **Scoring System:**
+ * - Base points = sushi difficulty × 100
+ * - Multiplier = chopsticks effectiveness × wasabi power
+ * - Bonus for first-time access to table
+ * - Penalty for failed injection
+ * 
+ * **Unlocking System:**
+ * - Score thresholds unlock advanced sushi
+ * - Tables accessed unlock new chopsticks
+ * - Successful injections unlock stronger wasabi
+ * 
+ * **Educational Value:**
+ * - Real SQL injection syntax
+ * - Explanation of each technique
+ * - Safe environment to practice
+ * - Understanding of vulnerabilities
+ * 
+ * @warning This is for EDUCATIONAL purposes only. Never attack real systems!
+ */
 class M5GotchiSushiSQLGame {
 private:
-    GameState currentState;
-    int selectedItem;
-    int currentScore;
-    int sushiEaten;
-    int tablesAccessed;
+    GameState currentState;        ///< Active game state
+    int selectedItem;              ///< Currently highlighted menu item
+    int currentScore;              ///< Player's total score
+    int sushiEaten;                ///< Count of successful injections
+    int tablesAccessed;            ///< Unique tables compromised
     
-    // Game items
-    SushiItem sushiMenu[7];
-    Chopsticks chopstickTypes[7];
-    WasabiPayload wasabiLevels[5];
+    SushiItem sushiMenu[7];        ///< Array of all sushi types
+    Chopsticks chopstickTypes[7];  ///< Array of all chopstick types
+    WasabiPayload wasabiLevels[5]; ///< Array of all wasabi levels
     
-    // Current selection
-    int selectedSushi;
-    int selectedChopsticks;
-    int selectedWasabi;
+    int selectedSushi;             ///< Currently selected sushi index
+    int selectedChopsticks;        ///< Currently selected chopsticks index
+    int selectedWasabi;            ///< Currently selected wasabi index
     
-    // Game results
-    bool injectionSuccessful;
-    String extractedData;
-    int pointsEarned;
+    bool injectionSuccessful;      ///< Result flag for current attempt
+    String extractedData;          ///< Simulated data from "database"
+    int pointsEarned;              ///< Points for current injection
     
-    // High scores
-    std::vector<GameScore> highScores;
+    std::vector<GameScore> highScores; ///< Leaderboard entries (top 10)
     
-    // Animation
-    int animationFrame;
-    unsigned long lastAnimUpdate;
+    int animationFrame;            ///< Current animation frame (0-59)
+    unsigned long lastAnimUpdate;  ///< Timestamp for animation timing
     
-    // Sound system reference
-    M5GotchiNekoSounds* nekoSounds;
+    M5GotchiNekoSounds* nekoSounds; ///< Pointer to sound system (optional)
 
 public:
+    /**
+     * @brief Constructor - initializes game state
+     * @details Sets all counters to zero, resets selections, and prepares
+     * for init() call.
+     */
     M5GotchiSushiSQLGame() {
         currentState = GAME_MENU;
         selectedItem = 0;
