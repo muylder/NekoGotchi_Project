@@ -4,6 +4,7 @@
 #include <SD.h>
 #include <WiFi.h>
 #include <vector>
+#include <algorithm>
 #include <cstdio>
 #include <cstring>
 
@@ -80,9 +81,12 @@ constexpr int kModeCardW = 216;
 constexpr int kModeCardH = 38;
 constexpr int kFooterY = 126;
 constexpr int kNekoLines = 5;
-constexpr int kNekoLineHeight = 10;
+constexpr int kNekoLineHeight = 8;
 constexpr size_t kFileWindow = 3;
+constexpr int kMenuVisibleRows = 6;
 constexpr char kDefaultMessage[] = "ESC abre menu  |  ENTER executa";
+constexpr int kPanelPadding = 8;
+constexpr int kPanelTitleOffset = 18;
 
 struct FrameSet {
     const char *lines[kNekoLines];
@@ -358,6 +362,7 @@ struct KeyFlags {
 int gSelectedIndex = 0;
 int gActiveMode = 0;
 bool gMenuVisible = false;
+int gMenuScroll = 0;
 
 bool gWifiOk = false;
 int gNetworksFound = 0;
@@ -428,6 +433,8 @@ bool modeUsesFullScreen() {
 void pumpAchievementNotifications();
 void renderActiveMode(bool initial = true);
 void drawFullScreenMode(bool initial);
+void drawPanel(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t accent, const char *title = nullptr);
+String ellipsize(const String &text, uint8_t maxChars);
 void drawHeader();
 void drawStatusCard();
 void drawNekoPanel();
@@ -439,6 +446,7 @@ void drawMenuOverlay();
 void hideMenuOverlay();
 void showMessage(const char *text);
 void advanceSelection(int delta);
+void ensureMenuScroll();
 void handleEnter();
 void handleEsc();
 void initPeripherals();
@@ -462,17 +470,47 @@ void changeBluetoothAttack(int delta);
 void triggerAchievementEvent(AchievementEvent ev, uint16_t value = 1);
 const char *bleAttackName(BLEAttackType type);
 
+void drawPanel(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t accent, const char *title) {
+    M5.Display.fillRoundRect(x, y, w, h, 6, kCardBg);
+    M5.Display.drawRoundRect(x, y, w, h, 6, accent);
+    if (title) {
+        M5.Display.setTextColor(accent, kCardBg);
+        M5.Display.setCursor(x + kPanelPadding, y + 6);
+        M5.Display.print(title);
+        int lineX = x + kPanelPadding;
+        int lineW = w - (kPanelPadding * 2);
+        if (lineW > 0) {
+            M5.Display.drawFastHLine(lineX, y + 16, lineW, accent);
+        }
+        M5.Display.setTextColor(kCardText, kCardBg);
+    }
+}
+
+String ellipsize(const String &text, uint8_t maxChars) {
+    if (maxChars == 0) {
+        return "";
+    }
+    if (text.length() <= maxChars) {
+        return text;
+    }
+    if (maxChars < 3) {
+        return text.substring(0, maxChars);
+    }
+    return text.substring(0, maxChars - 3) + "...";
+}
+
 void drawHeader() {
     const uint16_t accent = activeMode().accent;
-    M5.Display.fillRect(0, 0, 240, kHeaderHeight, accent);
-    M5.Display.setTextColor(TFT_WHITE, accent);
+    const String petName = gNekoReady ? gNekoPet.getPetName() : String("Neko");
+    M5.Display.fillRect(0, 0, 240, kHeaderHeight, kBgColor);
     M5.Display.setTextSize(2);
     M5.Display.setCursor(12, 5);
-    M5.Display.print("M5Gotchi PRO");
+    M5.Display.setTextColor(accent, kBgColor);
+    M5.Display.print(ellipsize(petName, 12));
     M5.Display.setTextSize(1);
-    M5.Display.setCursor(14, 20);
+    M5.Display.setCursor(12, 20);
+    M5.Display.setTextColor(kMutedColor, kBgColor);
     M5.Display.print(activeMode().label);
-    M5.Display.fillRect(0, kHeaderHeight, 240, 1, kBgColor);
 }
 
 void drawStatusCard() {
@@ -480,31 +518,33 @@ void drawStatusCard() {
         return;
     }
     const uint16_t accent = activeMode().accent;
-    M5.Display.fillRoundRect(kStatusX, kStatusY, kStatusW, kStatusH, 8, kCardBg);
-    M5.Display.drawRoundRect(kStatusX, kStatusY, kStatusW, kStatusH, 8, accent);
-    M5.Display.setTextSize(1);
-    M5.Display.setTextColor(kCardText, kCardBg);
-    M5.Display.setCursor(kStatusX + 8, kStatusY + 14);
+    drawPanel(kStatusX, kStatusY, kStatusW, kStatusH, accent, "Status");
+
+    const int contentX = kStatusX + kPanelPadding;
+    int lineY = kStatusY + kPanelTitleOffset;
 
     char wifiLine[48];
     if (gWifiOk) {
-        std::snprintf(wifiLine, sizeof(wifiLine), "WiFi: OK (%d redes)", gNetworksFound);
+        std::snprintf(wifiLine, sizeof(wifiLine), "WiFi: OK (%d)", gNetworksFound);
     } else {
-        std::snprintf(wifiLine, sizeof(wifiLine), "WiFi: indisponivel");
+        std::snprintf(wifiLine, sizeof(wifiLine), "WiFi: OFF");
     }
+    M5.Display.setCursor(contentX, lineY);
+    M5.Display.setTextColor(kCardText, kCardBg);
     M5.Display.print(wifiLine);
 
-    M5.Display.setCursor(kStatusX + 8, kStatusY + 28);
     char sdLine[48];
     if (gSdOk) {
         std::snprintf(sdLine, sizeof(sdLine), "SD: OK (%llu MB)",
                       static_cast<unsigned long long>(gSdSizeMb));
     } else {
-        std::snprintf(sdLine, sizeof(sdLine), "SD: nao detectado");
+        std::snprintf(sdLine, sizeof(sdLine), "SD: OFF");
     }
+    lineY += 12;
+    M5.Display.setCursor(contentX, lineY);
     M5.Display.print(sdLine);
 
-    M5.Display.setCursor(kStatusX + 8, kStatusY + 42);
+    lineY += 12;
     uint32_t uptimeSeconds = (millis() - gModeStartedAt) / 1000;
     uint32_t minutes = uptimeSeconds / 60;
     uint32_t seconds = uptimeSeconds % 60;
@@ -512,7 +552,10 @@ void drawStatusCard() {
     std::snprintf(timeLine, sizeof(timeLine), "Uptime: %lu:%02lu",
                   static_cast<unsigned long>(minutes),
                   static_cast<unsigned long>(seconds));
+    M5.Display.setCursor(contentX, lineY);
+    M5.Display.setTextColor(kMutedColor, kCardBg);
     M5.Display.print(timeLine);
+    M5.Display.setTextColor(kCardText, kCardBg);
 }
 
 void drawNekoFrame(bool forceClear) {
@@ -520,17 +563,22 @@ void drawNekoFrame(bool forceClear) {
         return;
     }
     (void)forceClear;
-    M5.Display.fillRect(kNekoX + 4, kNekoY + 4, kNekoW - 8, kNekoH - 8, kCardBg);
+    const int innerX = kNekoX + kPanelPadding;
+    const int innerY = kNekoY + kPanelTitleOffset;
+    const int innerW = kNekoW - (kPanelPadding * 2);
+    const int innerH = kNekoH - kPanelTitleOffset - kPanelPadding;
+    M5.Display.fillRect(innerX, innerY, innerW, innerH, kCardBg);
     M5.Display.setTextSize(1);
     M5.Display.setTextColor(kCardText, kCardBg);
 
-    if (gActiveFrameCount <= 0) {
+    if (gActiveFrameCount <= 0 || innerH <= 0) {
         return;
     }
 
     const FrameSet &frame = gActiveFrames[gNekoFrame % gActiveFrameCount];
-    for (int line = 0; line < kNekoLines; ++line) {
-        M5.Display.setCursor(kNekoX + 8, kNekoY + 12 + (line * kNekoLineHeight));
+    const int maxLines = std::min(kNekoLines, innerH / kNekoLineHeight);
+    for (int line = 0; line < maxLines; ++line) {
+        M5.Display.setCursor(innerX + 2, innerY + (line * kNekoLineHeight));
         M5.Display.print(frame.lines[line]);
     }
 }
@@ -540,8 +588,7 @@ void drawNekoPanel() {
         return;
     }
     const uint16_t accent = activeMode().accent;
-    M5.Display.fillRoundRect(kNekoX, kNekoY, kNekoW, kNekoH, 8, kCardBg);
-    M5.Display.drawRoundRect(kNekoX, kNekoY, kNekoW, kNekoH, 8, accent);
+    drawPanel(kNekoX, kNekoY, kNekoW, kNekoH, accent, "Companion");
     drawNekoFrame(true);
 }
 
@@ -559,29 +606,31 @@ void drawModeCard() {
         return;
     }
     const ModeInfo &mode = activeMode();
-    M5.Display.fillRoundRect(kModeCardX, kModeCardY, kModeCardW, kModeCardH, 8, kCardBg);
-    M5.Display.drawRoundRect(kModeCardX, kModeCardY, kModeCardW, kModeCardH, 8, mode.accent);
+    drawPanel(kModeCardX, kModeCardY, kModeCardW, kModeCardH, mode.accent, mode.label);
     M5.Display.setTextSize(1);
-    M5.Display.setTextColor(mode.accent, kCardBg);
-    M5.Display.setCursor(kModeCardX + 10, kModeCardY + 12);
-    M5.Display.print(mode.label);
+    const int contentX = kModeCardX + kPanelPadding;
+    int lineY = kModeCardY + kPanelTitleOffset;
     M5.Display.setTextColor(kCardText, kCardBg);
 
     switch (mode.type) {
         case ModeType::kHandshake: {
-            const char *status = gHandshakeCompleted ? "Status: concluido"
-                                                     : "Status: em andamento";
-            M5.Display.setCursor(kModeCardX + 10, kModeCardY + 22);
-            M5.Display.print(status);
-            const int barX = kModeCardX + 10;
-            const int barY = kModeCardY + 26;
-            const int barW = kModeCardW - 20;
-            M5.Display.fillRect(barX, barY, barW, 6, kMenuBg);
-            int filled = (barW * gHandshakeProgress) / 100;
-            M5.Display.fillRect(barX, barY, filled, 6, mode.accent);
-            M5.Display.setCursor(barX + barW - 36, barY - 6);
-            M5.Display.print(static_cast<int>(gHandshakeProgress));
-            M5.Display.print('%');
+            M5.Display.setCursor(contentX, lineY);
+            M5.Display.printf("Progresso: %3u%%", gHandshakeProgress);
+            lineY += 12;
+            uint32_t elapsed = (millis() - gModeStartedAt) / 1000;
+            uint32_t minutes = elapsed / 60;
+            uint32_t seconds = elapsed % 60;
+            M5.Display.setTextColor(kMutedColor, kCardBg);
+            M5.Display.setCursor(contentX, lineY);
+            M5.Display.printf("Tempo: %lu:%02lu", static_cast<unsigned long>(minutes),
+                              static_cast<unsigned long>(seconds));
+            if (gHandshakeCompleted) {
+                lineY += 12;
+                M5.Display.setTextColor(kCardText, kCardBg);
+                M5.Display.setCursor(contentX, lineY);
+                M5.Display.print("Status: concluido");
+            }
+            M5.Display.setTextColor(kCardText, kCardBg);
             break;
         }
         case ModeType::kClone:
@@ -659,29 +708,63 @@ void showMessage(const char *text) {
     }
 }
 
+void ensureMenuScroll() {
+    const int maxStart = std::max(0, kModeCount - kMenuVisibleRows);
+    if (gSelectedIndex < gMenuScroll) {
+        gMenuScroll = gSelectedIndex;
+    } else if (gSelectedIndex >= gMenuScroll + kMenuVisibleRows) {
+        gMenuScroll = gSelectedIndex - kMenuVisibleRows + 1;
+    }
+    gMenuScroll = std::max(0, std::min(gMenuScroll, maxStart));
+}
+
 void drawMenuOverlay() {
     gMenuVisible = true;
     if (!modeUsesFullScreen()) {
         drawLayout();
     }
+    ensureMenuScroll();
     const int panelX = 20;
     const int panelY = 32;
     const int panelW = 200;
-    const int panelH = 88;
-    M5.Display.fillRoundRect(panelX, panelY, panelW, panelH, 10, kMenuBg);
-    M5.Display.drawRoundRect(panelX, panelY, panelW, panelH, 10, activeMode().accent);
+    const int rowHeight = 12;
+    const int panelH = (kMenuVisibleRows * rowHeight) + (kPanelPadding * 2) + 6;
+    const uint16_t accent = activeMode().accent;
+    const String petName = gNekoReady ? gNekoPet.getPetName() : String("Neko");
+    drawPanel(panelX, panelY, panelW, panelH, accent, petName.c_str());
     M5.Display.setTextSize(1);
 
-    for (int i = 0; i < kModeCount; ++i) {
-        const int itemY = panelY + 12 + (i * 12);
-        if (i == gSelectedIndex) {
-            M5.Display.fillRoundRect(panelX + 6, itemY - 2, panelW - 12, 12, 4, kMenuHighlight);
+    for (int i = 0; i < kMenuVisibleRows; ++i) {
+        const int modeIndex = gMenuScroll + i;
+        if (modeIndex >= kModeCount) {
+            break;
+        }
+        const int itemY = panelY + kPanelTitleOffset + (i * rowHeight);
+        const bool selected = modeIndex == gSelectedIndex;
+        if (selected) {
+            M5.Display.fillRoundRect(panelX + kPanelPadding,
+                                     itemY - 2,
+                                     panelW - (kPanelPadding * 2),
+                                     rowHeight,
+                                     3,
+                                     kMenuHighlight);
             M5.Display.setTextColor(TFT_WHITE, kMenuHighlight);
         } else {
-            M5.Display.setTextColor(kCardText, kMenuBg);
+            M5.Display.setTextColor(kCardText, kCardBg);
         }
-        M5.Display.setCursor(panelX + 12, itemY + 6);
-        M5.Display.print(kModes[i].label);
+        M5.Display.setCursor(panelX + kPanelPadding + 4, itemY + 7);
+        M5.Display.print(kModes[modeIndex].label);
+    }
+
+    M5.Display.setTextColor(kMutedColor, kCardBg);
+    if (gMenuScroll > 0) {
+        M5.Display.setCursor(panelX + panelW - 16, panelY + kPanelPadding + 2);
+        M5.Display.print("^");
+    }
+    if (gMenuScroll + kMenuVisibleRows < kModeCount) {
+        M5.Display.setCursor(panelX + panelW - 16,
+                             panelY + panelH - kPanelPadding - 8);
+        M5.Display.print("v");
     }
 }
 
@@ -972,53 +1055,82 @@ void drawFullScreenMode(bool initial) {
 }
 
 void drawCloneStatus() {
-    M5.Display.setCursor(kModeCardX + 10, kModeCardY + 22);
+    const int contentX = kModeCardX + kPanelPadding;
+    int lineY = kModeCardY + kPanelTitleOffset;
+    M5.Display.setCursor(contentX, lineY);
     if (gDeauthActive) {
         M5.Display.print("Flood ativo");
-        M5.Display.setCursor(kModeCardX + 10, kModeCardY + 32);
+        lineY += 12;
+        M5.Display.setCursor(contentX, lineY);
         M5.Display.printf("Pacotes: %lu", static_cast<unsigned long>(gDeauthPackets));
+        lineY += 12;
+        M5.Display.setTextColor(kMutedColor, kCardBg);
+        M5.Display.setCursor(contentX, lineY);
+        M5.Display.print("SPACE desliga flood");
     } else {
         M5.Display.print("Pronto para iniciar");
-        M5.Display.setCursor(kModeCardX + 10, kModeCardY + 32);
-        M5.Display.print("SPACE liga/deixa flood.");
+        lineY += 12;
+        M5.Display.setTextColor(kMutedColor, kCardBg);
+        M5.Display.setCursor(contentX, lineY);
+        M5.Display.print("SPACE liga flood");
     }
+    M5.Display.setTextColor(kCardText, kCardBg);
 }
 
 void drawPortalStatus() {
-    M5.Display.setCursor(kModeCardX + 10, kModeCardY + 22);
+    const int contentX = kModeCardX + kPanelPadding;
+    int lineY = kModeCardY + kPanelTitleOffset;
+    M5.Display.setCursor(contentX, lineY);
     if (gPortalActive) {
         M5.Display.print("Portal simulando autent.");
-        M5.Display.setCursor(kModeCardX + 10, kModeCardY + 32);
+        lineY += 12;
+        M5.Display.setCursor(contentX, lineY);
         M5.Display.printf("Clientes fake: %lu", static_cast<unsigned long>(gPortalClients));
+        lineY += 12;
+        M5.Display.setTextColor(kMutedColor, kCardBg);
+        M5.Display.setCursor(contentX, lineY);
+        M5.Display.print("SPACE encerra");
     } else {
         M5.Display.print("Portal parado.");
-        M5.Display.setCursor(kModeCardX + 10, kModeCardY + 32);
-        M5.Display.print("SPACE inicia listeners.");
+        lineY += 12;
+        M5.Display.setTextColor(kMutedColor, kCardBg);
+        M5.Display.setCursor(contentX, lineY);
+        M5.Display.print("SPACE inicia listeners");
     }
+    M5.Display.setTextColor(kCardText, kCardBg);
 }
 
 void drawAnalyzerStatus() {
-    M5.Display.setCursor(kModeCardX + 10, kModeCardY + 22);
+    const int contentX = kModeCardX + kPanelPadding;
+    int lineY = kModeCardY + kPanelTitleOffset;
+    M5.Display.setCursor(contentX, lineY);
     M5.Display.printf("Canal ideal: %d", gBestChannel);
-    M5.Display.setCursor(kModeCardX + 10, kModeCardY + 32);
-    M5.Display.print("Carregamento: ");
+    lineY += 12;
     int load = gChannelUsage[gBestChannel];
-    M5.Display.print(load);
-    M5.Display.print(" redes");
+    M5.Display.setCursor(contentX, lineY);
+    M5.Display.printf("Carregamento: %d redes", load);
+    lineY += 12;
+    M5.Display.setTextColor(kMutedColor, kCardBg);
+    M5.Display.setCursor(contentX, lineY);
+    M5.Display.print("Auto-refresh a cada 12s");
+    M5.Display.setTextColor(kCardText, kCardBg);
 }
 
 void drawFileManagerStatus() {
-    M5.Display.setCursor(kModeCardX + 10, kModeCardY + 22);
+    const int contentX = kModeCardX + kPanelPadding;
+    int lineY = kModeCardY + kPanelTitleOffset;
+    M5.Display.setCursor(contentX, lineY);
     if (!gSdOk) {
         M5.Display.print("SD nao detectado.");
         return;
     }
-    M5.Display.print(gCurrentPath);
+    M5.Display.print(ellipsize(gCurrentPath, 30));
     size_t shown = 0;
+    lineY += 12;
     for (size_t i = gFileScroll; i < gFileEntries.size() && shown < kFileWindow; ++i, ++shown) {
         const FileEntry &entry = gFileEntries[i];
         bool selected = static_cast<int>(i) == gFileSelection;
-        M5.Display.setCursor(kModeCardX + 10, kModeCardY + 32 + (shown * 10));
+        M5.Display.setCursor(contentX, lineY + static_cast<int>(shown) * 11);
         M5.Display.setTextColor(selected ? activeMode().accent : kCardText, kCardBg);
         M5.Display.print(selected ? "> " : "  ");
         String label = entry.name;
@@ -1028,7 +1140,7 @@ void drawFileManagerStatus() {
             label += "  ";
             label += formatSize(entry.size);
         }
-        M5.Display.print(label.substring(0, 24));
+        M5.Display.print(ellipsize(label, 26));
     }
     M5.Display.setTextColor(kCardText, kCardBg);
 }
