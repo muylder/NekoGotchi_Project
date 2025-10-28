@@ -13,6 +13,7 @@ constexpr uint16_t kAccentColor = TFT_CYAN;
 constexpr uint16_t kMutedColor = TFT_DARKGREY;
 constexpr uint16_t kHighlightBg = TFT_DARKGREEN;
 constexpr uint16_t kHighlightFg = TFT_WHITE;
+constexpr uint16_t kMenuPanelBg = TFT_DARKGREY;
 constexpr uint32_t kHeartbeatIntervalMs = 1000;
 constexpr uint32_t kNekoFrameIntervalMs = 160;
 constexpr uint32_t kMessageTimeoutMs = 3000;
@@ -21,10 +22,11 @@ constexpr int kSdCsPin = 12;
 constexpr int kSdSckPin = 40;
 constexpr int kSdMisoPin = 39;
 constexpr int kSdMosiPin = 14;
-constexpr int kMenuX = 16;
-constexpr int kMenuY = 48;
-constexpr int kMenuLineHeight = 14;
-constexpr int kMenuWidth = 120;
+constexpr int kMenuPanelX = 12;
+constexpr int kMenuPanelY = 40;
+constexpr int kMenuPanelPadding = 3;
+constexpr int kMenuLineHeight = 11;
+constexpr int kMenuPanelWidth = 140;
 constexpr int kNekoX = 150;
 constexpr int kNekoY = 44;
 constexpr int kNekoLineHeight = 12;
@@ -79,6 +81,7 @@ const char *kNekoFrames[][kNekoLines] = {
 constexpr int kNekoFrameCount = sizeof(kNekoFrames) / sizeof(kNekoFrames[0]);
 
 int gSelectedIndex = 0;
+bool gMenuVisible = false;
 bool gWifiOk = false;
 int gNetworksFound = 0;
 bool gSdOk = false;
@@ -92,7 +95,7 @@ int gNekoFrame = 0;
 bool gMessageActive = false;
 uint32_t gMessageStart = 0;
 char gMessageBuffer[64] = {0};
-constexpr char kDefaultHint[] = "; /. navega  |  ENTER seleciona  |  ESC limpa";
+constexpr char kDefaultHint[] = "ESC abre menu  |  ; /. navega  |  ENTER executa";
 
 void drawHeader() {
     M5.Display.fillScreen(kBgColor);
@@ -121,31 +124,37 @@ void drawNekoFrame() {
     }
 }
 
-void drawMenu() {
-    M5.Display.fillRect(kMenuX - 6, kMenuY - 4, kMenuWidth + 12, kMenuLineHeight * kMenuCount + 8, kBgColor);
+void clearMenuPanel() {
+    const int panelHeight = (kMenuPanelPadding * 2) + (kMenuCount * kMenuLineHeight);
+    M5.Display.fillRect(kMenuPanelX - 2, kMenuPanelY - 2, kMenuPanelWidth + 4, panelHeight + 4, kBgColor);
+}
+
+void drawMenuPanel() {
+    const int panelHeight = (kMenuPanelPadding * 2) + (kMenuCount * kMenuLineHeight);
+    M5.Display.fillRoundRect(kMenuPanelX, kMenuPanelY, kMenuPanelWidth, panelHeight, 6, kMenuPanelBg);
+    M5.Display.drawRoundRect(kMenuPanelX, kMenuPanelY, kMenuPanelWidth, panelHeight, 6, kAccentColor);
 
     for (int i = 0; i < kMenuCount; ++i) {
-        const int itemY = kMenuY + (i * kMenuLineHeight);
-        if (i == gSelectedIndex) {
-            M5.Display.fillRect(kMenuX - 6, itemY - 2, kMenuWidth + 12, kMenuLineHeight, kHighlightBg);
-            M5.Display.setTextColor(kHighlightFg, kHighlightBg);
-        } else {
-            M5.Display.setTextColor(kFgColor, kBgColor);
-        }
+        const int itemY = kMenuPanelY + kMenuPanelPadding + (i * kMenuLineHeight);
         M5.Display.setTextSize(1);
-        M5.Display.setCursor(kMenuX, itemY);
-        M5.Display.print(kMenuItems[i].label);
         if (i == gSelectedIndex) {
-            M5.Display.setCursor(kMenuX, itemY + kMenuLineHeight - 6);
-            M5.Display.setTextColor(kAccentColor, kHighlightBg);
-            M5.Display.print(kMenuItems[i].description);
+            M5.Display.fillRoundRect(kMenuPanelX + 2, itemY - 1, kMenuPanelWidth - 4, kMenuLineHeight, 4, kHighlightBg);
+            M5.Display.setTextColor(kHighlightFg, kHighlightBg);
+            M5.Display.setCursor(kMenuPanelX + 6, itemY + 1);
+            M5.Display.print("> ");
+            M5.Display.print(kMenuItems[i].label);
+        } else {
+            M5.Display.setTextColor(kFgColor, kMenuPanelBg);
+            M5.Display.setCursor(kMenuPanelX + 6, itemY + 1);
+            M5.Display.print("  ");
+            M5.Display.print(kMenuItems[i].label);
         }
     }
 }
 
 void renderMessage() {
-    M5.Display.fillRect(12, 108, 216, 20, kBgColor);
-    M5.Display.setCursor(16, 110);
+    M5.Display.fillRect(12, 116, 216, 16, kBgColor);
+    M5.Display.setCursor(16, 118);
     M5.Display.setTextSize(1);
     M5.Display.setTextColor(kAccentColor, kBgColor);
     if (gMessageActive) {
@@ -192,14 +201,19 @@ void refreshVitals() {
 }
 
 void advanceSelection(int delta) {
+    if (!gMenuVisible) {
+        return;
+    }
     gSelectedIndex = (gSelectedIndex + delta + kMenuCount) % kMenuCount;
-    drawMenu();
-    char buffer[64];
-    snprintf(buffer, sizeof(buffer), "> %s", kMenuItems[gSelectedIndex].label);
-    showTemporaryMessage(buffer);
+    drawMenuPanel();
+    showTemporaryMessage(kMenuItems[gSelectedIndex].description);
 }
 
 void handleEnter() {
+    if (!gMenuVisible) {
+        showTemporaryMessage("Abra o menu com ESC");
+        return;
+    }
     char buffer[64];
     snprintf(buffer, sizeof(buffer), "TODO: %s", kMenuItems[gSelectedIndex].label);
     Serial.println(buffer);
@@ -207,7 +221,20 @@ void handleEnter() {
 }
 
 void handleEsc() {
-    showTemporaryMessage("ESC: aguardando implementacao");
+    if (gMenuVisible) {
+        clearMenuPanel();
+        gMenuVisible = false;
+        drawNekoFrame();
+        gMessageActive = false;
+        refreshVitals();
+        refreshStatus();
+        renderMessage();
+        showTemporaryMessage("Menu fechado");
+    } else {
+        gMenuVisible = true;
+        drawMenuPanel();
+        showTemporaryMessage(kMenuItems[gSelectedIndex].description);
+    }
 }
 
 void initPeripherals() {
@@ -261,7 +288,6 @@ void setup() {
     M5.Display.setTextColor(kFgColor, kBgColor);
 
     drawHeader();
-    drawMenu();
     drawNekoFrame();
     renderMessage();
     refreshVitals();
@@ -269,7 +295,7 @@ void setup() {
 
     initPeripherals();
     refreshStatus();
-    showTemporaryMessage("> Handshake Capture");
+    showTemporaryMessage("ESC abre menu principal");
 
     gLastHeartbeat = millis();
     gLastNekoTick = millis();
@@ -281,14 +307,28 @@ void loop() {
 
     if (M5Cardputer.Keyboard.isChange() && M5Cardputer.Keyboard.isPressed()) {
         auto status = M5Cardputer.Keyboard.keysState();
+        bool upRequested = false;
+        bool downRequested = false;
+        bool escRequested = false;
+
         for (auto key : status.word) {
-            if (key == ';') {
-                advanceSelection(-1);
-            } else if (key == '.') {
-                advanceSelection(1);
-            } else if (key == 0x1B) {
-                handleEsc();
+            if (key == ';' || key == 'w' || key == 'W') {
+                upRequested = true;
+            } else if (key == '.' || key == 's' || key == 'S') {
+                downRequested = true;
+            } else if (key == '`' || key == 0x1B) {
+                escRequested = true;
             }
+        }
+
+        if (escRequested) {
+            handleEsc();
+        }
+        if (upRequested) {
+            advanceSelection(-1);
+        }
+        if (downRequested) {
+            advanceSelection(1);
         }
         if (status.enter) {
             handleEnter();
@@ -304,8 +344,10 @@ void loop() {
     }
 
     if (now - gLastStatusTick >= kStatusRefreshMs) {
-        refreshVitals();
-        refreshStatus();
+        if (!gMenuVisible) {
+            refreshVitals();
+            refreshStatus();
+        }
         gLastStatusTick = now;
     }
 
