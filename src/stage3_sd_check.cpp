@@ -3,6 +3,7 @@
 #include <SPI.h>
 #include <SD.h>
 #include <WiFi.h>
+#include <esp_task_wdt.h>
 
 namespace {
 constexpr uint16_t kBgColor = TFT_BLACK;
@@ -74,9 +75,41 @@ void setup() {
 
     Serial.println(F("[6/8] Preparing SD bus"));
     SPI.begin(kSdSckPin, kSdMisoPin, kSdMosiPin, kSdCsPin);
+    delay(100);  // Give SPI bus time to stabilize
 
     Serial.println(F("[7/8] Mounting SD"));
-    const bool sdReady = SD.begin(kSdCsPin, SPI, 25000000);
+    Serial.println(F("Attempting SD.begin() - this may take a few seconds..."));
+    Serial.printf("CS=%d, SCK=%d, MISO=%d, MOSI=%d\n",
+                  kSdCsPin, kSdSckPin, kSdMisoPin, kSdMosiPin);
+
+    // Enable watchdog with 10 second timeout to prevent infinite hanging
+    esp_task_wdt_init(10, true);
+    esp_task_wdt_add(NULL);
+    Serial.println(F("Watchdog enabled (10s timeout)"));
+
+    bool sdReady = false;
+    // Try with lower frequency first (4MHz is safer for most cards)
+    Serial.println(F("Trying SD.begin() at 4MHz..."));
+    esp_task_wdt_reset();
+    sdReady = SD.begin(kSdCsPin, SPI, 4000000);
+    esp_task_wdt_reset();
+
+    if (!sdReady) {
+        Serial.println(F("First attempt at 4MHz failed, trying 1MHz..."));
+        SD.end();
+        delay(200);
+        esp_task_wdt_reset();
+        sdReady = SD.begin(kSdCsPin, SPI, 1000000);
+        esp_task_wdt_reset();
+    }
+
+    if (!sdReady) {
+        Serial.println(F("Second attempt at 1MHz failed"));
+    }
+
+    // Disable watchdog after SD initialization
+    esp_task_wdt_delete(NULL);
+    Serial.println(F("Watchdog disabled"));
 
     M5.Display.fillRect(20, 96, 200, 10, kBgColor);
     M5.Display.setCursor(20, 96);
