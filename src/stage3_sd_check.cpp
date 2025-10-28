@@ -9,10 +9,13 @@ namespace {
 constexpr uint16_t kBgColor = TFT_BLACK;
 constexpr uint16_t kFgColor = TFT_GREEN;
 constexpr uint32_t kHeartbeatIntervalMs = 1000;
-constexpr int kSdCsPin = 34;
-constexpr int kSdSckPin = 36;
-constexpr int kSdMisoPin = 35;
-constexpr int kSdMosiPin = 37;
+
+// Official M5Stack Cardputer SD card pins
+// Source: https://github.com/m5stack/M5Cardputer/blob/master/examples/Basic/sdcard/sdcard.ino
+constexpr int kSdCsPin = 12;
+constexpr int kSdSckPin = 40;
+constexpr int kSdMisoPin = 39;
+constexpr int kSdMosiPin = 14;
 }
 
 void setup() {
@@ -78,7 +81,7 @@ void setup() {
     delay(100);  // Give SPI bus time to stabilize
 
     Serial.println(F("[7/8] Mounting SD"));
-    Serial.println(F("Attempting SD.begin() - this may take a few seconds..."));
+    Serial.println(F("Using official M5Cardputer SD pins"));
     Serial.printf("CS=%d, SCK=%d, MISO=%d, MOSI=%d\n",
                   kSdCsPin, kSdSckPin, kSdMisoPin, kSdMosiPin);
 
@@ -88,14 +91,16 @@ void setup() {
     Serial.println(F("Watchdog enabled (10s timeout)"));
 
     bool sdReady = false;
-    // Try with lower frequency first (4MHz is safer for most cards)
-    Serial.println(F("Trying SD.begin() at 4MHz..."));
+
+    // Attempt 1: Standard SD frequency (4MHz)
+    Serial.println(F("Attempt 1: SD.begin() at 4MHz..."));
     esp_task_wdt_reset();
     sdReady = SD.begin(kSdCsPin, SPI, 4000000);
     esp_task_wdt_reset();
 
+    // Attempt 2: Lower frequency (1MHz) if first attempt failed
     if (!sdReady) {
-        Serial.println(F("First attempt at 4MHz failed, trying 1MHz..."));
+        Serial.println(F("Attempt 2: SD.begin() at 1MHz..."));
         SD.end();
         delay(200);
         esp_task_wdt_reset();
@@ -103,8 +108,34 @@ void setup() {
         esp_task_wdt_reset();
     }
 
+    // Attempt 3: Try alternative/legacy pin configuration
     if (!sdReady) {
-        Serial.println(F("Second attempt at 1MHz failed"));
+        Serial.println(F("Attempt 3: Trying legacy pins (36/35/37/34)..."));
+        SD.end();
+        SPI.end();
+        delay(200);
+
+        // Reinitialize with legacy pins
+        constexpr int legacyCS = 34, legacySCK = 36, legacyMISO = 35, legacyMOSI = 37;
+        SPI.begin(legacySCK, legacyMISO, legacyMOSI, legacyCS);
+        delay(100);
+
+        esp_task_wdt_reset();
+        sdReady = SD.begin(legacyCS, SPI, 4000000);
+        esp_task_wdt_reset();
+
+        if (sdReady) {
+            Serial.println(F("SUCCESS: SD card works with legacy pins!"));
+            Serial.println(F("NOTE: Your hardware may have custom wiring."));
+        }
+    }
+
+    if (!sdReady) {
+        Serial.println(F("FAILED: SD card not detected on any pin configuration"));
+        Serial.println(F("Possible issues:"));
+        Serial.println(F("  - SD card not inserted"));
+        Serial.println(F("  - SD card corrupted/incompatible"));
+        Serial.println(F("  - Hardware connection problem"));
     }
 
     // Disable watchdog after SD initialization
