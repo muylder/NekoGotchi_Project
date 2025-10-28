@@ -76,27 +76,38 @@ void setup() {
     SPI.begin(kSdSckPin, kSdMisoPin, kSdMosiPin, kSdCsPin);
 
     Serial.println(F("[7/8] Mounting SD"));
-    const bool sdReady = SD.begin(kSdCsPin, SPI, 25000000);
-
     M5.Display.fillRect(20, 96, 200, 10, kBgColor);
     M5.Display.setCursor(20, 96);
-    if (sdReady) {
-        const uint8_t type = SD.cardType();
-        const uint64_t sizeMb = SD.cardSize() / (1024ULL * 1024ULL);
-        Serial.printf("SD mount OK (type %u, %llu MB)\n", type, sizeMb);
-        M5.Display.setTextColor(TFT_GREEN, kBgColor);
-        M5.Display.printf("SD: OK (%llu MB)", sizeMb);
-    } else {
-        Serial.println(F("SD mount failed"));
+
+    // Simple SD check with proper failure handling
+    if (!SD.begin(kSdCsPin, SPI, 400000)) {
+        Serial.println(F("CRITICAL: SD card init failed"));
         M5.Display.setTextColor(TFT_RED, kBgColor);
         M5.Display.println(F("SD: FAIL"));
+
+        M5.Display.fillRect(20, 120, 200, 10, kBgColor);
+        M5.Display.setCursor(20, 120);
+        M5.Display.setTextColor(TFT_RED, kBgColor);
+        M5.Display.println(F("CRITICAL: System HALT"));
+
+        Serial.println(F("System halted due to SD init failure"));
+        while (true) {
+            M5.update();
+            delay(100);
+        }
     }
 
-    const bool overallOk = wifiOk && sdReady;
+    const uint8_t type = SD.cardType();
+    const uint64_t sizeMb = SD.cardSize() / (1024ULL * 1024ULL);
+    Serial.printf("SD mount OK (type %u, %llu MB)\n", type, sizeMb);
+    M5.Display.setTextColor(TFT_GREEN, kBgColor);
+    M5.Display.printf("SD: OK (%llu MB)", sizeMb);
+
+    const bool overallOk = wifiOk;
     M5.Display.fillRect(20, 120, 200, 10, kBgColor);
     M5.Display.setCursor(20, 120);
     M5.Display.setTextColor(overallOk ? TFT_GREEN : TFT_RED, kBgColor);
-    M5.Display.println(overallOk ? F("System check OK") : F("System check FAILED"));
+    M5.Display.println(overallOk ? F("System check OK") : F("WiFi check FAILED"));
 
     M5.Display.setTextColor(kFgColor, kBgColor);
 
