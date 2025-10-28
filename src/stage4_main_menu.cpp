@@ -3,272 +3,1340 @@
 #include <SPI.h>
 #include <SD.h>
 #include <WiFi.h>
-#include <cstring>
+#include <vector>
 #include <cstdio>
+#include <cstring>
 
-namespace {
+#if __has_include(<NimBLEDevice.h>)
+#include "bluetooth_attacks.h"
+#define HAS_BLE_ATTACKS 1
+#else
+#define HAS_BLE_ATTACKS 0
+enum BLEAttackType {
+    BLE_ATTACK_SOUR_APPLE,
+    BLE_ATTACK_SAMSUNG,
+    BLE_ATTACK_GOOGLE,
+    BLE_ATTACK_MICROSOFT,
+    BLE_ATTACK_ALL
+};
+
+class BluetoothAttacks {
+public:
+    bool begin() { return false; }
+    void end() {}
+    void startSourApple() {}
+    void startSamsungSpam() {}
+    void startGoogleSpam() {}
+    void startMicrosoftSpam() {}
+    void startSpamAll() {}
+    void stop() {}
+    bool isRunning() const { return false; }
+    uint32_t getPacketsSent() const { return 0; }
+    BLEAttackType getCurrentAttack() const { return BLE_ATTACK_SOUR_APPLE; }
+    void executeSourApple() {}
+    void executeSamsungSpam() {}
+    void executeGoogleSpam() {}
+    void executeMicrosoftSpam() {}
+    void executeRotateAll() {}
+};
+#endif
+
+#include "m5gotchi_achievement_manager.h"
+#include "m5gotchi_tutorial_system.h"
+#include "m5gotchi_neko_virtual_pet.h"
+#include "m5gotchi_neko_sounds.h"
+
+namespace stage4 {
 constexpr uint16_t kBgColor = TFT_BLACK;
-constexpr uint16_t kFgColor = TFT_GREEN;
-constexpr uint16_t kAccentColor = TFT_CYAN;
+constexpr uint16_t kCardBg = 0x2108;       // Dark panel background
+constexpr uint16_t kCardText = 0xC618;     // Soft white/grey
+constexpr uint16_t kMenuBg = 0x294A;
+constexpr uint16_t kMenuHighlight = TFT_DARKGREEN;
 constexpr uint16_t kMutedColor = TFT_DARKGREY;
-constexpr uint16_t kHighlightBg = TFT_DARKGREEN;
-constexpr uint16_t kHighlightFg = TFT_WHITE;
-constexpr uint16_t kMenuPanelBg = TFT_DARKGREY;
-constexpr uint32_t kHeartbeatIntervalMs = 1000;
+constexpr uint32_t kHeartbeatIntervalMs = 1400;
 constexpr uint32_t kNekoFrameIntervalMs = 160;
-constexpr uint32_t kMessageTimeoutMs = 3000;
-constexpr uint32_t kStatusRefreshMs = 1000;
+constexpr uint32_t kMessageTimeoutMs = 4500;
+constexpr uint32_t kStatusRefreshMs = 2200;
+constexpr uint32_t kAnalyzerRefreshMs = 12000;
+constexpr uint32_t kBluetoothTickMs = 60;
+constexpr uint32_t kPetRedrawMs = 1500;
 constexpr int kSdCsPin = 12;
 constexpr int kSdSckPin = 40;
 constexpr int kSdMisoPin = 39;
 constexpr int kSdMosiPin = 14;
-constexpr int kMenuPanelX = 12;
-constexpr int kMenuPanelY = 40;
-constexpr int kMenuPanelPadding = 3;
-constexpr int kMenuLineHeight = 11;
-constexpr int kMenuPanelWidth = 140;
-constexpr int kNekoX = 150;
-constexpr int kNekoY = 44;
-constexpr int kNekoLineHeight = 12;
+
+constexpr int kHeaderHeight = 28;
+constexpr int kStatusX = 12;
+constexpr int kStatusY = 36;
+constexpr int kStatusW = 120;
+constexpr int kStatusH = 52;
+constexpr int kNekoX = 148;
+constexpr int kNekoY = 36;
+constexpr int kNekoW = 80;
+constexpr int kNekoH = 58;
+constexpr int kModeCardX = 12;
+constexpr int kModeCardY = 90;
+constexpr int kModeCardW = 216;
+constexpr int kModeCardH = 38;
+constexpr int kFooterY = 126;
 constexpr int kNekoLines = 5;
-struct MenuItem {
+constexpr int kNekoLineHeight = 10;
+constexpr size_t kFileWindow = 3;
+constexpr char kDefaultMessage[] = "ESC abre menu  |  ENTER executa";
+
+struct FrameSet {
+    const char *lines[kNekoLines];
+};
+
+constexpr FrameSet kHandshakeFrames[] = {
+    {"  /\\_/\\  ",
+     " ( •_• ) ",
+     "  /|_|\\  ",
+     "  /   \\  ",
+     " ~SCAN~ "},
+    {"  /\\_/\\  ",
+     " ( •_• ) ",
+     "  /|_|\\  ",
+     "  /   \\  ",
+     " ~HASH~ "},
+    {"  /\\_/\\  ",
+     " ( •_• ) ",
+     "  /|_|\\  ",
+     "  /   \\  ",
+     " ~SAVE~ "}
+};
+
+constexpr FrameSet kCloneFrames[] = {
+    {"  /\\_/\\  ",
+     " ( °o° ) ",
+     "  /|_|\\  ",
+     "  /   \\  ",
+     "  CLONE  "},
+    {"  /\\_/\\  ",
+     " ( o°o ) ",
+     "  /|_|\\  ",
+     "  /   \\  ",
+     " DEAUTH  "}
+};
+
+constexpr FrameSet kPortalFrames[] = {
+    {"  /\\_/\\  ",
+     " ( ^_^ ) ",
+     "  /|_|\\  ",
+     "  /   \\  ",
+     " PORTAL  "},
+    {"  /\\_/\\  ",
+     " ( ^_^ ) ",
+     "  /|_|\\  ",
+     "  /   \\  ",
+     "  PHISH  "}
+};
+
+constexpr FrameSet kAnalyzerFrames[] = {
+    {"  /\\_/\\  ",
+     " ( @.@ ) ",
+     "  /|_|\\  ",
+     "  /   \\  ",
+     " ANALYZE "},
+    {"  /\\_/\\  ",
+     " ( o@o ) ",
+     "  /|_|\\  ",
+     "  /   \\  ",
+     " SPECTR  "}
+};
+
+constexpr FrameSet kFileFrames[] = {
+    {"  /\\_/\\  ",
+     " ( •‿• ) ",
+     "  /|_|\\  ",
+     "  /   \\  ",
+     "  FILES  "},
+    {"  /\\_/\\  ",
+     " ( •‿• ) ",
+     "  /|_|\\  ",
+     "  /   \\  ",
+     "  BROWSE "}
+};
+
+constexpr FrameSet kSettingsFrames[] = {
+    {"  /\\_/\\  ",
+     " ( o.o ) ",
+     "  /|_|\\  ",
+     "  /   \\  ",
+     " SETUP  "},
+    {"  /\\_/\\  ",
+     " ( o.o ) ",
+     "  /|_|\\  ",
+     "  /   \\  ",
+     " TWEAKS "}
+};
+
+constexpr FrameSet kBluetoothFrames[] = {
+    {"  /\\_/\\  ",
+     " ( ^.^ ) ",
+     "  /|_|\\  ",
+     "  /   \\  ",
+     "  BLE!! "},
+    {"  /\\_/\\  ",
+     " ( ^_^ ) ",
+     "  /|_|\\  ",
+     "  /   \\  ",
+     "  SPAM  "}
+};
+
+constexpr FrameSet kAchievementFrames[] = {
+    {"  /\\_/\\  ",
+     " ( *.* ) ",
+     "  /|_|\\  ",
+     "  /   \\  ",
+     "  XP++  "},
+    {"  /\\_/\\  ",
+     " ( ^o^ ) ",
+     "  /|_|\\  ",
+     "  /   \\  ",
+     "  WIN!  "}
+};
+
+constexpr FrameSet kTutorialFrames[] = {
+    {"  /\\_/\\  ",
+     " ( ?_? ) ",
+     "  /|_|\\  ",
+     "  /   \\  ",
+     "  HELP  "},
+    {"  /\\_/\\  ",
+     " ( ^_^ ) ",
+     "  /|_|\\  ",
+     "  /   \\  ",
+     " GUIDE  "}
+};
+
+constexpr FrameSet kPetFrames[] = {
+    {"  /\\_/\\  ",
+     " ( =.= ) ",
+     "  /|_|\\  ",
+     "  /   \\  ",
+     "  NEKO  "},
+    {"  /\\_/\\  ",
+     " ( >.< ) ",
+     "  /|_|\\  ",
+     "  /   \\  ",
+     "  PETME "}
+};
+
+enum class ModeType {
+    kHandshake = 0,
+    kClone,
+    kEvilPortal,
+    kAnalyzer,
+    kFileManager,
+    kSettings,
+    kBluetooth,
+    kAchievements,
+    kTutorial,
+    kVirtualPet
+};
+
+struct ModeInfo {
     const char *label;
-    const char *description;
+    const char *summary;
+    const char *hint;
+    const FrameSet *frames;
+    int frameCount;
+    uint16_t accent;
+    ModeType type;
+    bool fullScreen;
 };
 
-const MenuItem kMenuItems[] = {
-    {"Handshake Capture", "Sniff WPA handshakes"},
-    {"Clone + Deauth", "Rogue AP & disconnect"},
-    {"Evil Portal", "Captive portal phishing"},
-    {"Channel Analyzer", "Live RF spectrum"},
-    {"File Manager", "Browse SD storage"},
-    {"System Settings", "Themes & config"}
+constexpr ModeInfo kModes[] = {
+    {"Handshake Capture",
+     "Captura simulada com estagio 5 pronto",
+     "SPACE reinicia simulação; concluindo libera conquista.",
+     kHandshakeFrames,
+     static_cast<int>(sizeof(kHandshakeFrames) / sizeof(FrameSet)),
+     TFT_GREEN,
+     ModeType::kHandshake,
+     false},
+    {"Clone + Deauth",
+     "Clone AP e envia deauth temporario",
+     "SPACE inicia/para flood deauth.",
+     kCloneFrames,
+     static_cast<int>(sizeof(kCloneFrames) / sizeof(FrameSet)),
+     TFT_YELLOW,
+     ModeType::kClone,
+     false},
+    {"Evil Portal",
+     "Hotspot cativo com templates do SD",
+     "SPACE liga portal simulado para testes.",
+     kPortalFrames,
+     static_cast<int>(sizeof(kPortalFrames) / sizeof(FrameSet)),
+     TFT_CYAN,
+     ModeType::kEvilPortal,
+     false},
+    {"Channel Analyzer",
+     "Resumo de canais mais limpos",
+     "Scanner automatico a cada 12 segundos.",
+     kAnalyzerFrames,
+     static_cast<int>(sizeof(kAnalyzerFrames) / sizeof(FrameSet)),
+     TFT_BLUE,
+     ModeType::kAnalyzer,
+     false},
+    {"File Manager",
+     "Explore microSD (setas [] e O/B)",
+     "[ ] navega, O abre, B sobe diretório.",
+     kFileFrames,
+     static_cast<int>(sizeof(kFileFrames) / sizeof(FrameSet)),
+     TFT_ORANGE,
+     ModeType::kFileManager,
+     false},
+    {"System Settings",
+     "Idiomas, temas e atalhos",
+     "Use futuro Stage 5 para ajustes avançados.",
+     kSettingsFrames,
+     static_cast<int>(sizeof(kSettingsFrames) / sizeof(FrameSet)),
+     TFT_PURPLE,
+     ModeType::kSettings,
+     false},
+    {"Bluetooth Spam",
+     "Ataques SourApple / FastPair",
+     "SPACE toggle, [ ] troca ataque.",
+    kBluetoothFrames,
+    static_cast<int>(sizeof(kBluetoothFrames) / sizeof(FrameSet)),
+    0x4EDD,
+     ModeType::kBluetooth,
+     false},
+    {"Achievements",
+     "Progresso de conquistas hacker",
+     "Eventos registram automaticamente conquistas.",
+    kAchievementFrames,
+    static_cast<int>(sizeof(kAchievementFrames) / sizeof(FrameSet)),
+    0xFCA0,
+     ModeType::kAchievements,
+     false},
+    {"Tutorial Wizard",
+     "Onboarding interativo",
+     "ENTER abre wizard, N avança, B volta.",
+     kTutorialFrames,
+     static_cast<int>(sizeof(kTutorialFrames) / sizeof(FrameSet)),
+     TFT_CYAN,
+     ModeType::kTutorial,
+     true},
+    {"Neko Companion",
+     "Cuide do pet hacker em tempo real",
+     "F alimenta, P faz carinho, ENTER tela cheia.",
+    kPetFrames,
+    static_cast<int>(sizeof(kPetFrames) / sizeof(FrameSet)),
+    0xFD5F,
+     ModeType::kVirtualPet,
+     true}
 };
 
-constexpr int kMenuCount = sizeof(kMenuItems) / sizeof(kMenuItems[0]);
+constexpr int kModeCount = static_cast<int>(sizeof(kModes) / sizeof(kModes[0]));
 
-const char *kNekoFrames[][kNekoLines] = {
-    {
-        "  /\\_/\\  ",
-        " ( o.o ) ",
-        "  > ^ <  ",
-        "  /   \\  ",
-        "         "
-    },
-    {
-        "  /\\_/\\  ",
-        " ( o.o ) ",
-        "  > ^ <  ",
-        "   / \\   ",
-        "         "
-    },
-    {
-        "  /\\_/\\  ",
-        " ( o.o ) ",
-        "  > ^ <  ",
-        "  / \\    ",
-        "         "
-    },
-    {
-        "  /\\_/\\  ",
-        " ( o.o ) ",
-        "  > ^ <  ",
-        "   /   \\ ",
-        "         "
-    }
+struct FileEntry {
+    String name;
+    bool isDir;
+    uint32_t size;
 };
 
-constexpr int kNekoFrameCount = sizeof(kNekoFrames) / sizeof(kNekoFrames[0]);
+struct KeyFlags {
+    bool up = false;
+    bool down = false;
+    bool esc = false;
+    bool space = false;
+    bool feed = false;
+    bool pet = false;
+    bool cycleLeft = false;
+    bool cycleRight = false;
+    bool open = false;
+    bool back = false;
+    bool next = false;
+    bool prev = false;
+    bool skip = false;
+    bool help = false;
+};
 
 int gSelectedIndex = 0;
+int gActiveMode = 0;
 bool gMenuVisible = false;
+
 bool gWifiOk = false;
 int gNetworksFound = 0;
 bool gSdOk = false;
-uint8_t gSdType = CARD_NONE;
 uint64_t gSdSizeMb = 0;
 uint64_t gSdUsedMb = 0;
-uint32_t gLastHeartbeat = 0;
+
+uint32_t gModeStartedAt = 0;
+uint8_t gNekoFrame = 0;
 uint32_t gLastNekoTick = 0;
 uint32_t gLastStatusTick = 0;
-int gNekoFrame = 0;
+uint32_t gLastHeartbeat = 0;
 bool gMessageActive = false;
 uint32_t gMessageStart = 0;
-char gMessageBuffer[64] = {0};
-constexpr char kDefaultHint[] = "ESC abre menu  |  ; /. navega  |  ENTER executa";
+char gMessageBuffer[120] = {0};
+
+uint8_t gHandshakeProgress = 0;
+bool gHandshakeCompleted = false;
+uint32_t gHandshakeTick = 0;
+
+const FrameSet *gActiveFrames = kHandshakeFrames;
+int gActiveFrameCount = static_cast<int>(sizeof(kHandshakeFrames) / sizeof(FrameSet));
+
+// Feature controllers
+BluetoothAttacks gBleAttacks;
+bool gBleReady = false;
+bool gBleActive = false;
+BLEAttackType gBleType = BLE_ATTACK_SOUR_APPLE;
+uint32_t gBlePackets = 0;
+uint32_t gBleLastTick = 0;
+
+AchievementManager gAchievementManager;
+bool gAchievementsReady = false;
+
+TutorialSystem gTutorial;
+bool gTutorialReady = false;
+
+M5GotchiNekoSounds gNekoSounds;
+M5GotchiNekoVirtualPet gNekoPet;
+bool gNekoReady = false;
+uint32_t gLastPetRedraw = 0;
+
+std::vector<FileEntry> gFileEntries;
+String gCurrentPath = "/";
+int gFileSelection = 0;
+int gFileScroll = 0;
+
+bool gDeauthActive = false;
+uint32_t gDeauthPackets = 0;
+uint32_t gDeauthTick = 0;
+
+bool gPortalActive = false;
+uint32_t gPortalClients = 0;
+uint32_t gPortalTick = 0;
+
+int gChannelUsage[14] = {0};
+int gBestChannel = 1;
+uint32_t gLastChannelScan = 0;
+
+const ModeInfo &activeMode() {
+    return kModes[gActiveMode];
+}
+
+bool modeUsesFullScreen() {
+    return activeMode().fullScreen;
+}
+
+void pumpAchievementNotifications();
+void renderActiveMode(bool initial = true);
+void drawFullScreenMode(bool initial);
+void drawHeader();
+void drawStatusCard();
+void drawNekoPanel();
+void drawNekoFrame(bool forceClear = false);
+void drawModeCard();
+void drawFooter();
+void drawLayout();
+void drawMenuOverlay();
+void hideMenuOverlay();
+void showMessage(const char *text);
+void advanceSelection(int delta);
+void handleEnter();
+void handleEsc();
+void initPeripherals();
+void applyMode(int index);
+void updateHandshakeSimulation(uint32_t now);
+void updateChannelAnalyzer(uint32_t now);
+void updateDeauthSimulation(uint32_t now);
+void updatePortalSimulation(uint32_t now);
+void tickBluetooth(uint32_t now);
+void refreshFileListing(const String &path);
+void moveFileSelection(int delta);
+void openSelectedFile();
+void goFileParent();
+String formatSize(uint32_t bytes);
+String parentPath(const String &path);
+void processModeShortcuts(const KeyFlags &flags);
+void toggleDeauth();
+void togglePortal();
+void toggleBluetooth();
+void changeBluetoothAttack(int delta);
+void triggerAchievementEvent(AchievementEvent ev, uint16_t value = 1);
+const char *bleAttackName(BLEAttackType type);
 
 void drawHeader() {
-    M5.Display.fillScreen(kBgColor);
-    M5.Display.setTextColor(kAccentColor, kBgColor);
+    const uint16_t accent = activeMode().accent;
+    M5.Display.fillRect(0, 0, 240, kHeaderHeight, accent);
+    M5.Display.setTextColor(TFT_WHITE, accent);
     M5.Display.setTextSize(2);
-    M5.Display.setCursor(12, 10);
-    M5.Display.println(F("M5Gotchi PRO"));
-
+    M5.Display.setCursor(12, 5);
+    M5.Display.print("M5Gotchi PRO");
     M5.Display.setTextSize(1);
-    M5.Display.setCursor(16, 30);
-    M5.Display.setTextColor(kMutedColor, kBgColor);
-    M5.Display.println(F("Stage 4: Main Menu"));
-
-    M5.Display.fillRect(12, 38, 216, 1, kAccentColor);
+    M5.Display.setCursor(14, 20);
+    M5.Display.print(activeMode().label);
+    M5.Display.fillRect(0, kHeaderHeight, 240, 1, kBgColor);
 }
 
-void drawNekoFrame() {
-    M5.Display.fillRect(kNekoX - 8, kNekoY - 4, 96, kNekoLines * kNekoLineHeight, kBgColor);
-
+void drawStatusCard() {
+    if (modeUsesFullScreen()) {
+        return;
+    }
+    const uint16_t accent = activeMode().accent;
+    M5.Display.fillRoundRect(kStatusX, kStatusY, kStatusW, kStatusH, 8, kCardBg);
+    M5.Display.drawRoundRect(kStatusX, kStatusY, kStatusW, kStatusH, 8, accent);
     M5.Display.setTextSize(1);
-    M5.Display.setTextColor(kFgColor, kBgColor);
+    M5.Display.setTextColor(kCardText, kCardBg);
+    M5.Display.setCursor(kStatusX + 8, kStatusY + 14);
 
+    char wifiLine[48];
+    if (gWifiOk) {
+        std::snprintf(wifiLine, sizeof(wifiLine), "WiFi: OK (%d redes)", gNetworksFound);
+    } else {
+        std::snprintf(wifiLine, sizeof(wifiLine), "WiFi: indisponivel");
+    }
+    M5.Display.print(wifiLine);
+
+    M5.Display.setCursor(kStatusX + 8, kStatusY + 28);
+    char sdLine[48];
+    if (gSdOk) {
+        std::snprintf(sdLine, sizeof(sdLine), "SD: OK (%llu MB)",
+                      static_cast<unsigned long long>(gSdSizeMb));
+    } else {
+        std::snprintf(sdLine, sizeof(sdLine), "SD: nao detectado");
+    }
+    M5.Display.print(sdLine);
+
+    M5.Display.setCursor(kStatusX + 8, kStatusY + 42);
+    uint32_t uptimeSeconds = (millis() - gModeStartedAt) / 1000;
+    uint32_t minutes = uptimeSeconds / 60;
+    uint32_t seconds = uptimeSeconds % 60;
+    char timeLine[48];
+    std::snprintf(timeLine, sizeof(timeLine), "Uptime: %lu:%02lu",
+                  static_cast<unsigned long>(minutes),
+                  static_cast<unsigned long>(seconds));
+    M5.Display.print(timeLine);
+}
+
+void drawNekoFrame(bool forceClear) {
+    if (modeUsesFullScreen()) {
+        return;
+    }
+    (void)forceClear;
+    M5.Display.fillRect(kNekoX + 4, kNekoY + 4, kNekoW - 8, kNekoH - 8, kCardBg);
+    M5.Display.setTextSize(1);
+    M5.Display.setTextColor(kCardText, kCardBg);
+
+    if (gActiveFrameCount <= 0) {
+        return;
+    }
+
+    const FrameSet &frame = gActiveFrames[gNekoFrame % gActiveFrameCount];
     for (int line = 0; line < kNekoLines; ++line) {
-        M5.Display.setCursor(kNekoX, kNekoY + (line * kNekoLineHeight));
-        M5.Display.print(kNekoFrames[gNekoFrame][line]);
+        M5.Display.setCursor(kNekoX + 8, kNekoY + 12 + (line * kNekoLineHeight));
+        M5.Display.print(frame.lines[line]);
     }
 }
 
-void clearMenuPanel() {
-    const int panelHeight = (kMenuPanelPadding * 2) + (kMenuCount * kMenuLineHeight);
-    M5.Display.fillRect(kMenuPanelX - 2, kMenuPanelY - 2, kMenuPanelWidth + 4, panelHeight + 4, kBgColor);
-}
-
-void drawMenuPanel() {
-    const int panelHeight = (kMenuPanelPadding * 2) + (kMenuCount * kMenuLineHeight);
-    M5.Display.fillRoundRect(kMenuPanelX, kMenuPanelY, kMenuPanelWidth, panelHeight, 6, kMenuPanelBg);
-    M5.Display.drawRoundRect(kMenuPanelX, kMenuPanelY, kMenuPanelWidth, panelHeight, 6, kAccentColor);
-
-    for (int i = 0; i < kMenuCount; ++i) {
-        const int itemY = kMenuPanelY + kMenuPanelPadding + (i * kMenuLineHeight);
-        M5.Display.setTextSize(1);
-        if (i == gSelectedIndex) {
-            M5.Display.fillRoundRect(kMenuPanelX + 2, itemY - 1, kMenuPanelWidth - 4, kMenuLineHeight, 4, kHighlightBg);
-            M5.Display.setTextColor(kHighlightFg, kHighlightBg);
-            M5.Display.setCursor(kMenuPanelX + 6, itemY + 1);
-            M5.Display.print("> ");
-            M5.Display.print(kMenuItems[i].label);
-        } else {
-            M5.Display.setTextColor(kFgColor, kMenuPanelBg);
-            M5.Display.setCursor(kMenuPanelX + 6, itemY + 1);
-            M5.Display.print("  ");
-            M5.Display.print(kMenuItems[i].label);
-        }
+void drawNekoPanel() {
+    if (modeUsesFullScreen()) {
+        return;
     }
+    const uint16_t accent = activeMode().accent;
+    M5.Display.fillRoundRect(kNekoX, kNekoY, kNekoW, kNekoH, 8, kCardBg);
+    M5.Display.drawRoundRect(kNekoX, kNekoY, kNekoW, kNekoH, 8, accent);
+    drawNekoFrame(true);
 }
 
-void renderMessage() {
-    M5.Display.fillRect(12, 116, 216, 16, kBgColor);
-    M5.Display.setCursor(16, 118);
+void drawBluetoothStatus();
+void drawAchievementsStatus();
+void drawFileManagerStatus();
+void drawAnalyzerStatus();
+void drawPortalStatus();
+void drawCloneStatus();
+void drawPetStatusCard();
+void drawTutorialStatusCard();
+
+void drawModeCard() {
+    if (modeUsesFullScreen()) {
+        return;
+    }
+    const ModeInfo &mode = activeMode();
+    M5.Display.fillRoundRect(kModeCardX, kModeCardY, kModeCardW, kModeCardH, 8, kCardBg);
+    M5.Display.drawRoundRect(kModeCardX, kModeCardY, kModeCardW, kModeCardH, 8, mode.accent);
     M5.Display.setTextSize(1);
-    M5.Display.setTextColor(kAccentColor, kBgColor);
+    M5.Display.setTextColor(mode.accent, kCardBg);
+    M5.Display.setCursor(kModeCardX + 10, kModeCardY + 12);
+    M5.Display.print(mode.label);
+    M5.Display.setTextColor(kCardText, kCardBg);
+
+    switch (mode.type) {
+        case ModeType::kHandshake: {
+            const char *status = gHandshakeCompleted ? "Status: concluido"
+                                                     : "Status: em andamento";
+            M5.Display.setCursor(kModeCardX + 10, kModeCardY + 22);
+            M5.Display.print(status);
+            const int barX = kModeCardX + 10;
+            const int barY = kModeCardY + 26;
+            const int barW = kModeCardW - 20;
+            M5.Display.fillRect(barX, barY, barW, 6, kMenuBg);
+            int filled = (barW * gHandshakeProgress) / 100;
+            M5.Display.fillRect(barX, barY, filled, 6, mode.accent);
+            M5.Display.setCursor(barX + barW - 36, barY - 6);
+            M5.Display.print(static_cast<int>(gHandshakeProgress));
+            M5.Display.print('%');
+            break;
+        }
+        case ModeType::kClone:
+            drawCloneStatus();
+            break;
+        case ModeType::kEvilPortal:
+            drawPortalStatus();
+            break;
+        case ModeType::kAnalyzer:
+            drawAnalyzerStatus();
+            break;
+        case ModeType::kFileManager:
+            drawFileManagerStatus();
+            break;
+        case ModeType::kSettings: {
+            M5.Display.setCursor(kModeCardX + 10, kModeCardY + 22);
+            M5.Display.print("Temas: Dark/Neon/Kawaii");
+            M5.Display.setCursor(kModeCardX + 10, kModeCardY + 32);
+            M5.Display.print("Use Stage 5 para ajustes completos.");
+            break;
+        }
+        case ModeType::kBluetooth:
+            drawBluetoothStatus();
+            break;
+        case ModeType::kAchievements:
+            drawAchievementsStatus();
+            break;
+        case ModeType::kTutorial:
+            drawTutorialStatusCard();
+            break;
+        case ModeType::kVirtualPet:
+            drawPetStatusCard();
+            break;
+    }
+}
+
+void drawFooter() {
+    if (modeUsesFullScreen()) {
+        return;
+    }
+    M5.Display.fillRect(0, kFooterY, 240, 135 - kFooterY, kBgColor);
+    M5.Display.setCursor(12, kFooterY + 4);
+    M5.Display.setTextSize(1);
+    M5.Display.setTextColor(kMutedColor, kBgColor);
     if (gMessageActive) {
         M5.Display.print(gMessageBuffer);
     } else {
-        M5.Display.print(kDefaultHint);
+        M5.Display.print(kDefaultMessage);
     }
 }
 
-void showTemporaryMessage(const char *text) {
-    strncpy(gMessageBuffer, text, sizeof(gMessageBuffer) - 1);
+void drawLayout() {
+    if (modeUsesFullScreen()) {
+        drawFullScreenMode(true);
+        return;
+    }
+    M5.Display.fillScreen(kBgColor);
+    drawHeader();
+    drawStatusCard();
+    drawNekoPanel();
+    drawModeCard();
+    drawFooter();
+}
+
+void showMessage(const char *text) {
+    if (!text) {
+        return;
+    }
+    std::strncpy(gMessageBuffer, text, sizeof(gMessageBuffer) - 1);
     gMessageBuffer[sizeof(gMessageBuffer) - 1] = '\0';
     gMessageActive = true;
     gMessageStart = millis();
-    renderMessage();
+    if (!modeUsesFullScreen()) {
+        drawFooter();
+    }
 }
 
-void refreshStatus() {
-    M5.Display.fillRect(12, 92, 216, 12, kBgColor);
-    M5.Display.setCursor(16, 94);
+void drawMenuOverlay() {
+    gMenuVisible = true;
+    if (!modeUsesFullScreen()) {
+        drawLayout();
+    }
+    const int panelX = 20;
+    const int panelY = 32;
+    const int panelW = 200;
+    const int panelH = 88;
+    M5.Display.fillRoundRect(panelX, panelY, panelW, panelH, 10, kMenuBg);
+    M5.Display.drawRoundRect(panelX, panelY, panelW, panelH, 10, activeMode().accent);
     M5.Display.setTextSize(1);
-    M5.Display.setTextColor(kFgColor, kBgColor);
 
-    char statusLine[128];
-    snprintf(statusLine, sizeof(statusLine), "WiFi: %s (%d redes)  |  SD: %s (%llu MB)",
-             gWifiOk ? "OK" : "FAIL",
-             gNetworksFound,
-             gSdOk ? "OK" : "FAIL",
-             static_cast<unsigned long long>(gSdSizeMb));
-    M5.Display.print(statusLine);
+    for (int i = 0; i < kModeCount; ++i) {
+        const int itemY = panelY + 12 + (i * 12);
+        if (i == gSelectedIndex) {
+            M5.Display.fillRoundRect(panelX + 6, itemY - 2, panelW - 12, 12, 4, kMenuHighlight);
+            M5.Display.setTextColor(TFT_WHITE, kMenuHighlight);
+        } else {
+            M5.Display.setTextColor(kCardText, kMenuBg);
+        }
+        M5.Display.setCursor(panelX + 12, itemY + 6);
+        M5.Display.print(kModes[i].label);
+    }
 }
 
-void refreshVitals() {
-    M5.Display.fillRect(12, 82, 216, 10, kBgColor);
-    M5.Display.setCursor(16, 82);
-    M5.Display.setTextSize(1);
-    M5.Display.setTextColor(kMutedColor, kBgColor);
-    const uint32_t uptimeSeconds = millis() / 1000;
-    const uint32_t minutes = uptimeSeconds / 60;
-    const uint32_t seconds = uptimeSeconds % 60;
-    char vitals[64];
-    snprintf(vitals, sizeof(vitals), "Uptime %lu:%02lu  |  Neko frame %d", static_cast<unsigned long>(minutes), static_cast<unsigned long>(seconds), gNekoFrame);
-    M5.Display.print(vitals);
+void hideMenuOverlay() {
+    gMenuVisible = false;
+    renderActiveMode(true);
 }
 
 void advanceSelection(int delta) {
     if (!gMenuVisible) {
         return;
     }
-    gSelectedIndex = (gSelectedIndex + delta + kMenuCount) % kMenuCount;
-    drawMenuPanel();
-    showTemporaryMessage(kMenuItems[gSelectedIndex].description);
+    gSelectedIndex = (gSelectedIndex + delta + kModeCount) % kModeCount;
+    drawMenuOverlay();
+    showMessage(kModes[gSelectedIndex].hint);
 }
 
 void handleEnter() {
-    if (!gMenuVisible) {
-        showTemporaryMessage("Abra o menu com ESC");
-        return;
+    if (gMenuVisible) {
+        gMenuVisible = false;
+        applyMode(gSelectedIndex);
+        showMessage(kModes[gActiveMode].hint);
+    } else if (modeUsesFullScreen()) {
+        drawFullScreenMode(true);
+    } else {
+        showMessage("Pressione ESC para abrir o menu principal.");
     }
-    char buffer[64];
-    snprintf(buffer, sizeof(buffer), "TODO: %s", kMenuItems[gSelectedIndex].label);
-    Serial.println(buffer);
-    showTemporaryMessage(buffer);
 }
 
 void handleEsc() {
     if (gMenuVisible) {
-        clearMenuPanel();
-        gMenuVisible = false;
-        drawNekoFrame();
-        gMessageActive = false;
-        refreshVitals();
-        refreshStatus();
-        renderMessage();
-        showTemporaryMessage("Menu fechado");
+        hideMenuOverlay();
+        showMessage("Menu fechado.");
     } else {
-        gMenuVisible = true;
-        drawMenuPanel();
-        showTemporaryMessage(kMenuItems[gSelectedIndex].description);
+        gSelectedIndex = gActiveMode;
+        drawMenuOverlay();
+        showMessage("Use ;/. ou W/S para navegar.");
     }
 }
 
 void initPeripherals() {
-    Serial.println(F("[A] WiFi scan start"));
+    Serial.println(F("[A] Varredura WiFi"));
     WiFi.mode(WIFI_STA);
     WiFi.disconnect(true);
     delay(200);
-    gNetworksFound = WiFi.scanNetworks(false, true);
-    gWifiOk = gNetworksFound >= 0;
-    if (!gWifiOk) {
-        gNetworksFound = 0;
-        Serial.println(F("WiFi scan failed"));
+    int networks = WiFi.scanNetworks(false, true);
+    gWifiOk = networks >= 0;
+    gNetworksFound = gWifiOk ? networks : 0;
+    if (gWifiOk) {
+        Serial.printf("WiFi: %d redes encontradas\n", gNetworksFound);
     } else {
-        Serial.printf("WiFi networks found: %d\n", gNetworksFound);
+        Serial.println(F("WiFi scan falhou"));
     }
     WiFi.scanDelete();
 
-    Serial.println(F("[B] SD init"));
+    Serial.println(F("[B] Inicializando SD"));
     SPI.begin(kSdSckPin, kSdMisoPin, kSdMosiPin, kSdCsPin);
     gSdOk = SD.begin(kSdCsPin, SPI, 25000000);
     if (gSdOk) {
-        gSdType = SD.cardType();
         gSdSizeMb = SD.cardSize() / (1024ULL * 1024ULL);
 #if defined(ESP32)
         gSdUsedMb = SD.usedBytes() / (1024ULL * 1024ULL);
 #endif
-        Serial.printf("SD OK type=%u size=%lluMB used=%lluMB\n", gSdType, static_cast<unsigned long long>(gSdSizeMb), static_cast<unsigned long long>(gSdUsedMb));
+        Serial.printf("SD OK: %llu MB\n",
+                      static_cast<unsigned long long>(gSdSizeMb));
+        refreshFileListing(gCurrentPath);
     } else {
-        gSdType = CARD_NONE;
         gSdSizeMb = 0;
         gSdUsedMb = 0;
-        Serial.println(F("SD mount failed"));
+        Serial.println(F("SD nao montado"));
+    }
+
+    gBleReady = gBleAttacks.begin();
+    gAchievementsReady = gAchievementManager.init();
+    gTutorialReady = gTutorial.init();
+    gTutorial.setContext(CONTEXT_MAIN_MENU);
+    gNekoSounds.init();
+    gNekoPet.setSoundSystem(&gNekoSounds);
+    gNekoPet.init();
+    gNekoReady = true;
+}
+
+void renderActiveMode(bool initial) {
+    if (modeUsesFullScreen()) {
+        drawFullScreenMode(initial);
+    } else {
+        if (initial) {
+            drawLayout();
+        } else {
+            drawModeCard();
+            drawFooter();
+        }
     }
 }
+
+void applyMode(int index) {
+    if (index < 0 || index >= kModeCount) {
+        return;
+    }
+    gActiveMode = index;
+    gSelectedIndex = index;
+    gModeStartedAt = millis();
+    gActiveFrames = kModes[index].frames;
+    gActiveFrameCount = kModes[index].frameCount;
+    gNekoFrame = 0;
+
+    if (activeMode().type == ModeType::kHandshake) {
+        gHandshakeProgress = 0;
+        gHandshakeCompleted = false;
+        gHandshakeTick = millis();
+    }
+
+    if (activeMode().type == ModeType::kFileManager && gSdOk) {
+        refreshFileListing(gCurrentPath);
+    }
+
+    if (activeMode().type == ModeType::kTutorial && gTutorialReady && !gTutorial.isTutorialActive()) {
+        gTutorial.startWizard();
+    }
+
+    renderActiveMode(true);
+}
+
+void triggerAchievementEvent(AchievementEvent ev, uint16_t value) {
+    if (!gAchievementsReady) {
+        return;
+    }
+    gAchievementManager.onEvent(ev, value);
+    pumpAchievementNotifications();
+}
+
+void updateHandshakeSimulation(uint32_t now) {
+    if (activeMode().type != ModeType::kHandshake) {
+        return;
+    }
+    if (now - gHandshakeTick < 180) {
+        return;
+    }
+    gHandshakeTick = now;
+    if (gHandshakeProgress < 100) {
+        gHandshakeProgress = static_cast<uint8_t>(gHandshakeProgress + 2);
+        if (gHandshakeProgress > 100) {
+            gHandshakeProgress = 100;
+        }
+        if (!modeUsesFullScreen() && !gMenuVisible) {
+            drawModeCard();
+        }
+        if (gHandshakeProgress == 100 && !gHandshakeCompleted) {
+            gHandshakeCompleted = true;
+            showMessage("Simulacao completa! Stage 5 ativa captura real.");
+            triggerAchievementEvent(EVENT_WIFI_HANDSHAKE);
+            if (gNekoReady) {
+                gNekoPet.notifyHackSuccess("Handshake");
+            }
+        }
+    }
+}
+
+void updateDeauthSimulation(uint32_t now) {
+    if (!gDeauthActive) {
+        return;
+    }
+    if (now - gDeauthTick < 120) {
+        return;
+    }
+    gDeauthTick = now;
+    gDeauthPackets += 6;
+    if (!modeUsesFullScreen() && activeMode().type == ModeType::kClone) {
+        drawModeCard();
+    }
+    if ((gDeauthPackets % 120) == 0) {
+        triggerAchievementEvent(EVENT_WIFI_DEAUTH, 1);
+    }
+}
+
+void updatePortalSimulation(uint32_t now) {
+    if (!gPortalActive) {
+        return;
+    }
+    if (now - gPortalTick < 800) {
+        return;
+    }
+    gPortalTick = now;
+    gPortalClients = (gPortalClients + 1) % 8;
+    if (!modeUsesFullScreen() && activeMode().type == ModeType::kEvilPortal) {
+        drawModeCard();
+    }
+}
+
+void updateChannelAnalyzer(uint32_t now) {
+    if (activeMode().type != ModeType::kAnalyzer) {
+        return;
+    }
+    if (now - gLastChannelScan < kAnalyzerRefreshMs) {
+        return;
+    }
+    gLastChannelScan = now;
+    int networks = WiFi.scanNetworks(false, true);
+    if (networks < 0) {
+        showMessage("Scanner de canais falhou.");
+        return;
+    }
+    memset(gChannelUsage, 0, sizeof(gChannelUsage));
+    for (int i = 0; i < networks; ++i) {
+        int channel = WiFi.channel(i);
+        if (channel >= 1 && channel <= 13) {
+            gChannelUsage[channel]++;
+        }
+    }
+    gBestChannel = 1;
+    int bestLoad = gChannelUsage[1];
+    for (int ch = 2; ch <= 13; ++ch) {
+        if (gChannelUsage[ch] < bestLoad) {
+            bestLoad = gChannelUsage[ch];
+            gBestChannel = ch;
+        }
+    }
+    if (!modeUsesFullScreen()) {
+        drawModeCard();
+    }
+    WiFi.scanDelete();
+}
+
+void tickBluetooth(uint32_t now) {
+    if (!gBleReady || !gBleActive) {
+        return;
+    }
+    if (now - gBleLastTick < kBluetoothTickMs) {
+        return;
+    }
+    gBleLastTick = now;
+    switch (gBleType) {
+        case BLE_ATTACK_SOUR_APPLE:
+            gBleAttacks.executeSourApple();
+            break;
+        case BLE_ATTACK_SAMSUNG:
+            gBleAttacks.executeSamsungSpam();
+            break;
+        case BLE_ATTACK_GOOGLE:
+            gBleAttacks.executeGoogleSpam();
+            break;
+        case BLE_ATTACK_MICROSOFT:
+            gBleAttacks.executeMicrosoftSpam();
+            break;
+        case BLE_ATTACK_ALL:
+            gBleAttacks.executeRotateAll();
+            break;
+    }
+    gBlePackets++;
+    if (!modeUsesFullScreen() && activeMode().type == ModeType::kBluetooth) {
+        drawModeCard();
+    }
+    if ((gBlePackets % 80) == 0) {
+        triggerAchievementEvent(EVENT_BLE_SPAM, 1);
+    }
+}
+
+void drawFullScreenMode(bool initial) {
+    const ModeType type = activeMode().type;
+    if (!modeUsesFullScreen()) {
+        return;
+    }
+    if (type == ModeType::kTutorial) {
+        if (!gTutorialReady) {
+            M5.Display.fillScreen(kBgColor);
+            M5.Display.setTextColor(TFT_WHITE);
+            M5.Display.setCursor(20, 60);
+            M5.Display.print("Tutorial indisponivel.");
+            return;
+        }
+        if (initial) {
+            gTutorial.drawCurrentStep();
+        }
+    } else if (type == ModeType::kVirtualPet) {
+        if (!gNekoReady) {
+            M5.Display.fillScreen(kBgColor);
+            M5.Display.setTextColor(TFT_WHITE);
+            M5.Display.setCursor(20, 60);
+            M5.Display.print("Pet nao inicializado.");
+            return;
+        }
+        if (initial || millis() - gLastPetRedraw > kPetRedrawMs) {
+            M5.Display.fillScreen(TFT_BLACK);
+            gNekoPet.drawPetScreen();
+            gLastPetRedraw = millis();
+        }
+    }
+}
+
+void drawCloneStatus() {
+    M5.Display.setCursor(kModeCardX + 10, kModeCardY + 22);
+    if (gDeauthActive) {
+        M5.Display.print("Flood ativo");
+        M5.Display.setCursor(kModeCardX + 10, kModeCardY + 32);
+        M5.Display.printf("Pacotes: %lu", static_cast<unsigned long>(gDeauthPackets));
+    } else {
+        M5.Display.print("Pronto para iniciar");
+        M5.Display.setCursor(kModeCardX + 10, kModeCardY + 32);
+        M5.Display.print("SPACE liga/deixa flood.");
+    }
+}
+
+void drawPortalStatus() {
+    M5.Display.setCursor(kModeCardX + 10, kModeCardY + 22);
+    if (gPortalActive) {
+        M5.Display.print("Portal simulando autent.");
+        M5.Display.setCursor(kModeCardX + 10, kModeCardY + 32);
+        M5.Display.printf("Clientes fake: %lu", static_cast<unsigned long>(gPortalClients));
+    } else {
+        M5.Display.print("Portal parado.");
+        M5.Display.setCursor(kModeCardX + 10, kModeCardY + 32);
+        M5.Display.print("SPACE inicia listeners.");
+    }
+}
+
+void drawAnalyzerStatus() {
+    M5.Display.setCursor(kModeCardX + 10, kModeCardY + 22);
+    M5.Display.printf("Canal ideal: %d", gBestChannel);
+    M5.Display.setCursor(kModeCardX + 10, kModeCardY + 32);
+    M5.Display.print("Carregamento: ");
+    int load = gChannelUsage[gBestChannel];
+    M5.Display.print(load);
+    M5.Display.print(" redes");
+}
+
+void drawFileManagerStatus() {
+    M5.Display.setCursor(kModeCardX + 10, kModeCardY + 22);
+    if (!gSdOk) {
+        M5.Display.print("SD nao detectado.");
+        return;
+    }
+    M5.Display.print(gCurrentPath);
+    size_t shown = 0;
+    for (size_t i = gFileScroll; i < gFileEntries.size() && shown < kFileWindow; ++i, ++shown) {
+        const FileEntry &entry = gFileEntries[i];
+        bool selected = static_cast<int>(i) == gFileSelection;
+        M5.Display.setCursor(kModeCardX + 10, kModeCardY + 32 + (shown * 10));
+        M5.Display.setTextColor(selected ? activeMode().accent : kCardText, kCardBg);
+        M5.Display.print(selected ? "> " : "  ");
+        String label = entry.name;
+        if (entry.isDir && entry.name != "..") {
+            label += "/";
+        } else if (!entry.isDir) {
+            label += "  ";
+            label += formatSize(entry.size);
+        }
+        M5.Display.print(label.substring(0, 24));
+    }
+    M5.Display.setTextColor(kCardText, kCardBg);
+}
+
+void drawBluetoothStatus() {
+    M5.Display.setCursor(kModeCardX + 10, kModeCardY + 22);
+    if (!gBleReady) {
+        M5.Display.print("BLE stack indisponivel.");
+        return;
+    }
+    M5.Display.printf("Ataque: %s", bleAttackName(gBleType));
+    M5.Display.setCursor(kModeCardX + 10, kModeCardY + 32);
+    M5.Display.printf("Estado: %s", gBleActive ? "Ativo" : "Standby");
+    M5.Display.setCursor(kModeCardX + 10, kModeCardY + 42);
+    M5.Display.printf("Pkts: %lu", static_cast<unsigned long>(gBlePackets));
+}
+
+void drawAchievementsStatus() {
+    if (!gAchievementsReady) {
+        M5.Display.setCursor(kModeCardX + 10, kModeCardY + 22);
+        M5.Display.print("Sist. conquistas off.");
+        return;
+    }
+    const PlayerStats &stats = gAchievementManager.getStats();
+    uint8_t unlocked = gAchievementManager.countUnlocked();
+    uint8_t total = gAchievementManager.getCount();
+    M5.Display.setCursor(kModeCardX + 10, kModeCardY + 22);
+    M5.Display.printf("Desbloqueadas: %u/%u", unlocked, total);
+    M5.Display.setCursor(kModeCardX + 10, kModeCardY + 32);
+    M5.Display.printf("Pontuacao: %u", stats.totalPoints);
+    M5.Display.setCursor(kModeCardX + 10, kModeCardY + 42);
+    M5.Display.printf("Scans: %u  BLE: %u", stats.networksScanned, stats.bleAttacks);
+}
+
+void drawTutorialStatusCard() {
+    M5.Display.setCursor(kModeCardX + 10, kModeCardY + 22);
+    if (!gTutorialReady) {
+        M5.Display.print("Tutorial indisponivel.");
+        return;
+    }
+    M5.Display.print(gTutorial.isFirstRun() ? "Primeira execucao detectada" : "Ajuda rapida pronta");
+    M5.Display.setCursor(kModeCardX + 10, kModeCardY + 32);
+    M5.Display.print("ENTER abre wizard, N avanca.");
+}
+
+void drawPetStatusCard() {
+    if (!gNekoReady) {
+        M5.Display.setCursor(kModeCardX + 10, kModeCardY + 22);
+        M5.Display.print("Pet kawaii nao pronto.");
+        return;
+    }
+    M5.Display.setCursor(kModeCardX + 10, kModeCardY + 22);
+    M5.Display.printf("Humor: %d  Felicidade: %d", gNekoPet.getCurrentMood(), gNekoPet.getHappiness());
+    M5.Display.setCursor(kModeCardX + 10, kModeCardY + 32);
+    M5.Display.printf("Skill hack: %d", gNekoPet.getHackSkill());
+    M5.Display.setCursor(kModeCardX + 10, kModeCardY + 42);
+    M5.Display.print("F: snack  P: carinho");
+}
+
+String formatSize(uint32_t bytes) {
+    if (bytes < 1024) {
+        return String(bytes) + " B";
+    }
+    if (bytes < 1024 * 1024) {
+        return String(bytes / 1024) + " KB";
+    }
+    return String(bytes / (1024 * 1024)) + " MB";
+}
+
+String parentPath(const String &path) {
+    if (path == "/") {
+        return "/";
+    }
+    int slash = path.lastIndexOf('/');
+    if (slash <= 0) {
+        return "/";
+    }
+    return path.substring(0, slash);
+}
+
+void refreshFileListing(const String &path) {
+    gFileEntries.clear();
+    if (!gSdOk) {
+        return;
+    }
+    File dir = SD.open(path);
+    if (!dir || !dir.isDirectory()) {
+        showMessage("Diretorio invalido");
+        return;
+    }
+    if (path != "/") {
+        gFileEntries.push_back({"..", true, 0});
+    }
+    for (File entry = dir.openNextFile(); entry; entry = dir.openNextFile()) {
+        FileEntry item;
+        item.name = String(entry.name());
+        item.isDir = entry.isDirectory();
+        item.size = entry.size();
+        gFileEntries.push_back(item);
+        entry.close();
+    }
+    dir.close();
+    gCurrentPath = path;
+    gFileSelection = 0;
+    gFileScroll = 0;
+}
+
+void moveFileSelection(int delta) {
+    if (gFileEntries.empty()) {
+        return;
+    }
+    gFileSelection = (gFileSelection + delta + static_cast<int>(gFileEntries.size())) % static_cast<int>(gFileEntries.size());
+    if (gFileSelection < gFileScroll) {
+        gFileScroll = gFileSelection;
+    } else if (gFileSelection >= gFileScroll + static_cast<int>(kFileWindow)) {
+        gFileScroll = gFileSelection - static_cast<int>(kFileWindow) + 1;
+    }
+    drawModeCard();
+}
+
+void openSelectedFile() {
+    if (!gSdOk || gFileEntries.empty()) {
+        return;
+    }
+    FileEntry entry = gFileEntries[gFileSelection];
+    if (entry.isDir) {
+        if (entry.name == "..") {
+            goFileParent();
+            return;
+        }
+        String next = gCurrentPath == "/" ? "" : gCurrentPath;
+        next += "/";
+        next += entry.name;
+        refreshFileListing(next);
+        drawModeCard();
+        return;
+    }
+    char buffer[96];
+    std::snprintf(buffer, sizeof(buffer), "Arquivo: %s", entry.name.c_str());
+    showMessage(buffer);
+}
+
+void goFileParent() {
+    if (gCurrentPath == "/") {
+        return;
+    }
+    String parent = parentPath(gCurrentPath);
+    if (parent.isEmpty()) {
+        parent = "/";
+    }
+    refreshFileListing(parent);
+    drawModeCard();
+}
+
+void toggleDeauth() {
+    gDeauthActive = !gDeauthActive;
+    if (gDeauthActive) {
+        gDeauthPackets = 0;
+        gDeauthTick = millis();
+        showMessage("Deauth simulada ativada.");
+    } else {
+        showMessage("Flood pausado.");
+    }
+    drawModeCard();
+}
+
+void togglePortal() {
+    gPortalActive = !gPortalActive;
+    if (gPortalActive) {
+        gPortalClients = 0;
+        gPortalTick = millis();
+        showMessage("Portal simulado iniciado.");
+        triggerAchievementEvent(EVENT_PORTAL_CREATE, 1);
+    } else {
+        showMessage("Portal desligado.");
+    }
+    drawModeCard();
+}
+
+const char *bleAttackName(BLEAttackType type) {
+    switch (type) {
+        case BLE_ATTACK_SOUR_APPLE: return "SourApple";
+        case BLE_ATTACK_SAMSUNG: return "Samsung";
+        case BLE_ATTACK_GOOGLE: return "FastPair";
+        case BLE_ATTACK_MICROSOFT: return "SwiftPair";
+        case BLE_ATTACK_ALL: return "Mix";
+    }
+    return "?";
+}
+
+void toggleBluetooth() {
+    if (!gBleReady) {
+        showMessage("BLE nao inicializado.");
+        return;
+    }
+    if (gBleActive) {
+        gBleAttacks.stop();
+        gBleActive = false;
+        showMessage("BLE spam parado.");
+    } else {
+        switch (gBleType) {
+            case BLE_ATTACK_SOUR_APPLE: gBleAttacks.startSourApple(); break;
+            case BLE_ATTACK_SAMSUNG: gBleAttacks.startSamsungSpam(); break;
+            case BLE_ATTACK_GOOGLE: gBleAttacks.startGoogleSpam(); break;
+            case BLE_ATTACK_MICROSOFT: gBleAttacks.startMicrosoftSpam(); break;
+            case BLE_ATTACK_ALL: gBleAttacks.startSpamAll(); break;
+        }
+        gBleActive = true;
+        gBlePackets = 0;
+        showMessage("BLE spam ativo.");
+        triggerAchievementEvent(EVENT_BLE_SPAM, 1);
+    }
+    drawModeCard();
+}
+
+void changeBluetoothAttack(int delta) {
+    int type = static_cast<int>(gBleType);
+    type = (type + delta + 5) % 5;
+    gBleType = static_cast<BLEAttackType>(type);
+    if (gBleActive) {
+        toggleBluetooth();
+        toggleBluetooth();
+    }
+    drawModeCard();
+}
+
+void pumpAchievementNotifications() {
+    if (!gAchievementsReady || !gAchievementManager.hasNewUnlocks()) {
+        return;
+    }
+    auto unlocked = gAchievementManager.getNewUnlocks();
+    if (unlocked.empty()) {
+        return;
+    }
+    uint8_t id = unlocked.front();
+    const Achievement *ach = gAchievementManager.getAchievement(id);
+    if (!ach) {
+        return;
+    }
+    char buffer[120];
+    std::snprintf(buffer, sizeof(buffer), "Conquista desbloqueada: %s", ach->name_P);
+    showMessage(buffer);
+}
+
+void processModeShortcuts(const KeyFlags &flags) {
+    const ModeType type = activeMode().type;
+    if (flags.space) {
+        switch (type) {
+            case ModeType::kClone: toggleDeauth(); break;
+            case ModeType::kEvilPortal: togglePortal(); break;
+            case ModeType::kBluetooth: toggleBluetooth(); break;
+            case ModeType::kHandshake:
+                gHandshakeProgress = 0;
+                gHandshakeCompleted = false;
+                showMessage("Simulacao reiniciada.");
+                break;
+            default: break;
+        }
+    }
+
+    if (flags.cycleLeft) {
+        if (type == ModeType::kBluetooth) {
+            changeBluetoothAttack(-1);
+        } else if (type == ModeType::kFileManager) {
+            moveFileSelection(-1);
+        }
+    }
+    if (flags.cycleRight) {
+        if (type == ModeType::kBluetooth) {
+            changeBluetoothAttack(1);
+        } else if (type == ModeType::kFileManager) {
+            moveFileSelection(1);
+        }
+    }
+
+    if (flags.open && type == ModeType::kFileManager) {
+        openSelectedFile();
+    }
+    if (flags.back && type == ModeType::kFileManager) {
+        goFileParent();
+    }
+
+    if (type == ModeType::kVirtualPet && gNekoReady) {
+        if (flags.feed) {
+            gNekoPet.quickFeed();
+            showMessage("Neko alimentado (snack)");
+        }
+        if (flags.pet) {
+            gNekoPet.quickPet();
+            showMessage("Neko feliz (carinho)");
+        }
+    }
+
+    if (type == ModeType::kTutorial && gTutorialReady) {
+        if (flags.next) {
+            gTutorial.nextStep();
+        }
+        if (flags.prev) {
+            gTutorial.previousStep();
+        }
+        if (flags.skip) {
+            gTutorial.skipTutorial();
+            showMessage("Tutorial pulado.");
+        }
+        if (flags.help) {
+            gTutorial.showContextualHelp();
+        }
+    }
 }
 
 void setup() {
@@ -280,80 +1348,139 @@ void setup() {
     Serial.println(F("========================"));
 
     auto cfg = M5.config();
-    M5.begin(cfg);
-    M5Cardputer.begin();
+    M5Cardputer.begin(cfg);
 
     M5.Display.setRotation(1);
     M5.Display.setTextSize(1);
-    M5.Display.setTextColor(kFgColor, kBgColor);
-
-    drawHeader();
-    drawNekoFrame();
-    renderMessage();
-    refreshVitals();
-    refreshStatus();
+    M5.Display.setTextColor(kCardText, kBgColor);
 
     initPeripherals();
-    refreshStatus();
-    showTemporaryMessage("ESC abre menu principal");
+    applyMode(0);
+    showMessage("ESC abre o menu principal. SPACE executa acao.");
 
-    gLastHeartbeat = millis();
     gLastNekoTick = millis();
     gLastStatusTick = millis();
+    gLastHeartbeat = millis();
 }
 
 void loop() {
-    M5.update();
+    M5Cardputer.update();
 
     if (M5Cardputer.Keyboard.isChange() && M5Cardputer.Keyboard.isPressed()) {
         auto status = M5Cardputer.Keyboard.keysState();
-        bool upRequested = false;
-        bool downRequested = false;
-        bool escRequested = false;
-
+        KeyFlags flags;
         for (auto key : status.word) {
-            if (key == ';' || key == 'w' || key == 'W') {
-                upRequested = true;
-            } else if (key == '.' || key == 's' || key == 'S') {
-                downRequested = true;
-            } else if (key == '`' || key == 0x1B) {
-                escRequested = true;
+            switch (key) {
+                case ';':
+                case 'w':
+                case 'W':
+                    flags.up = true;
+                    break;
+                case '.':
+                case 's':
+                case 'S':
+                    flags.down = true;
+                    break;
+                case '`':
+                case 0x1B:
+                    flags.esc = true;
+                    break;
+                case ' ': flags.space = true; break;
+                case 'f':
+                case 'F':
+                    flags.feed = true;
+                    break;
+                case 'p':
+                case 'P':
+                    flags.pet = true;
+                    break;
+                case '[':
+                case '{':
+                    flags.cycleLeft = true;
+                    break;
+                case ']':
+                case '}':
+                    flags.cycleRight = true;
+                    break;
+                case 'o':
+                case 'O':
+                    flags.open = true;
+                    break;
+                case 'b':
+                case 'B':
+                    flags.back = true;
+                    flags.prev = true;
+                    break;
+                case 'n':
+                case 'N':
+                    flags.next = true;
+                    break;
+                case 'h':
+                case 'H':
+                case '?':
+                    flags.help = true;
+                    break;
+                case 'x':
+                case 'X':
+                    flags.skip = true;
+                    break;
+                default:
+                    break;
             }
         }
 
-        if (escRequested) {
+        if (flags.esc) {
             handleEsc();
         }
-        if (upRequested) {
+        if (flags.up) {
             advanceSelection(-1);
         }
-        if (downRequested) {
+        if (flags.down) {
             advanceSelection(1);
         }
         if (status.enter) {
             handleEnter();
         }
+        processModeShortcuts(flags);
     }
 
     const uint32_t now = millis();
 
-    if (now - gLastNekoTick >= kNekoFrameIntervalMs) {
-        gNekoFrame = (gNekoFrame + 1) % kNekoFrameCount;
+    if (!modeUsesFullScreen() && !gMenuVisible && now - gLastNekoTick >= kNekoFrameIntervalMs && gActiveFrameCount > 0) {
+        gNekoFrame = static_cast<uint8_t>((gNekoFrame + 1) % gActiveFrameCount);
         drawNekoFrame();
         gLastNekoTick = now;
     }
 
-    if (now - gLastStatusTick >= kStatusRefreshMs) {
-        if (!gMenuVisible) {
-            refreshVitals();
-            refreshStatus();
-        }
+    if (!modeUsesFullScreen() && !gMenuVisible && now - gLastStatusTick >= kStatusRefreshMs) {
+        drawStatusCard();
+        drawModeCard();
         gLastStatusTick = now;
     }
 
+    updateHandshakeSimulation(now);
+    updateDeauthSimulation(now);
+    updatePortalSimulation(now);
+    updateChannelAnalyzer(now);
+    tickBluetooth(now);
+
+    if (gNekoReady) {
+        gNekoPet.update();
+    }
+    if (gTutorialReady) {
+        gTutorial.update();
+    }
+    if (gAchievementsReady) {
+        gAchievementManager.update();
+    }
+
+    pumpAchievementNotifications();
+
     if (gMessageActive && (now - gMessageStart >= kMessageTimeoutMs)) {
         gMessageActive = false;
-        renderMessage();
+        if (!modeUsesFullScreen()) {
+            drawFooter();
+        }
     }
 
     if (now - gLastHeartbeat >= kHeartbeatIntervalMs) {
@@ -361,5 +1488,15 @@ void loop() {
         gLastHeartbeat = now;
     }
 
-    delay(10);
+    delay(6);
+}
+
+}  // namespace stage4
+
+void setup() {
+    stage4::setup();
+}
+
+void loop() {
+    stage4::loop();
 }
