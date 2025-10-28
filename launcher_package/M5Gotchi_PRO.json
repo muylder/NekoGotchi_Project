@@ -1,0 +1,106 @@
+{
+  "version": "1.0.0",
+  "name": "M5Gotchi PRO",
+  "author": "NekoHacker Team",
+  "description": "🐱 WiFi Security Testing Suite with 22 Features",
+  "category": "Security",
+  "created": "2025-10-27",
+  "updated": "2025-10-27",
+  
+  "firmware": {
+    "file": "M5Gotchi_PRO.bin",
+    "size": "1.31 MB",
+    "offset": "0x10000"
+  },
+  
+  "bootloader": {
+    "file": "bootloader.bin",
+    "offset": "0x0"
+  },
+  
+  "partitions": {
+    "file": "partitions.bin",
+    "offset": "0x8000"
+  },
+  
+  "features": [
+    "🔍 WiFi Scanner (channels, signal, encryption)",
+    "💥 Deauth Attack (targeted/broadcast)",
+    "🤝 Evil Twin Portal (captive)",
+    "📡 Beacon Spam (fake APs)",
+    "🎣 Handshake Capture (WPA/WPA2)",
+    "📊 Channel Analyzer (real-time graphs)",
+    "🔗 Pwnagotchi Detector (peer discovery)",
+    "📶 WiFi Analyzer (detailed metrics)",
+    "🎮 Mini Games (Paw Scanner, Sushi SQL)",
+    "🏆 Achievement System (7 categories)",
+    "📚 Tutorial System (8-step guide)",
+    "🛡️ Universal Controls",
+    "🔵 Bluetooth Scanner",
+    "📻 RF 433MHz Transceiver",
+    "🔖 RFID/NFC Reader/Writer",
+    "📡 LoRa Messenger",
+    "🛰️ GPS Wardriving",
+    "🌈 IR Universal Remote",
+    "🎨 Theme System",
+    "✨ Visual Effects",
+    "💾 SD Card Support",
+    "📊 Web Dashboard"
+  ],
+  
+  "requirements": {
+    "device": "M5Stack Cardputer",
+    "chip": "ESP32-S3",
+    "ram": "320KB (uses 19.6%)",
+    "flash": "8MB (uses 41.7%)",
+    "partitions": "huge_app (3.15MB)"
+  },
+  
+  "installation": {
+    "method_1_launcher": [
+      "1. Abra o Cardputer Launcher",
+      "2. Vá em: Browser → Add Custom",
+      "3. Selecione M5Gotchi_PRO.bin",
+      "4. Instale e reinicie"
+    ],
+    "method_2_esptool": [
+      "1. python -m esptool --port COM3 erase_flash",
+      "2. python -m esptool --port COM3 --chip esp32s3 write_flash 0x0 bootloader.bin",
+      "3. python -m esptool --port COM3 --chip esp32s3 write_flash 0x8000 partitions.bin",
+      "4. python -m esptool --port COM3 --chip esp32s3 write_flash 0x10000 M5Gotchi_PRO.bin"
+    ],
+    "method_3_platformio": [
+      "1. cd M5Gotchi_Pro_Project",
+      "2. pio run -e m5stack-cardputer --target upload"
+    ]
+  },
+  
+  "controls": {
+    "navigation": "Keyboard arrow keys or trackball",
+    "select": "ENTER or trackball click",
+    "back": "ESC or G0 button",
+    "power": "Hold PWR button"
+  },
+  
+  "changelog": {
+    "1.0.0": [
+      "✨ Initial release",
+      "🔧 22 integrated features",
+      "🎮 Tutorial + Achievement systems",
+      "🛡️ Universal controls implementation",
+      "📊 Memory optimized (19.6% RAM)"
+    ]
+  },
+  
+  "troubleshooting": {
+    "stuck_loading": "Try resetting via Launcher or reflashing bootloader",
+    "no_wifi": "Check antenna connection",
+    "sd_error": "Format SD card as FAT32",
+    "bluetooth_fail": "Disable WiFi before BLE scan"
+  },
+  
+  "links": {
+    "github": "https://github.com/muylder/NekoGotchi_Project",
+    "docs": "See README.md and /docs folder"
+  }
+}
