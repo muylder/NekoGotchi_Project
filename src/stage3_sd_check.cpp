@@ -3,12 +3,15 @@
 #include <SPI.h>
 #include <SD.h>
 #include <WiFi.h>
-#include <esp_task_wdt.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
+#include <freertos/semphr.h>
 
 namespace {
 constexpr uint16_t kBgColor = TFT_BLACK;
 constexpr uint16_t kFgColor = TFT_GREEN;
 constexpr uint32_t kHeartbeatIntervalMs = 1000;
+constexpr uint32_t kSdTimeoutMs = 5000;  // 5 second timeout
 
 // Official M5Stack Cardputer SD card pins
 // Source: https://github.com/m5stack/M5Cardputer/blob/master/examples/Basic/sdcard/sdcard.ino
@@ -16,6 +19,66 @@ constexpr int kSdCsPin = 12;
 constexpr int kSdSckPin = 40;
 constexpr int kSdMisoPin = 39;
 constexpr int kSdMosiPin = 14;
+
+// SD initialization state
+volatile bool sdTaskComplete = false;
+volatile bool sdTaskSuccess = false;
+TaskHandle_t sdTaskHandle = nullptr;
+
+// Task to initialize SD card with timeout
+void sdInitTask(void* parameter) {
+    int csPin = (int)(intptr_t)parameter;
+    Serial.printf("Task: Attempting SD.begin(CS=%d)...\n", csPin);
+
+    bool result = SD.begin(csPin, SPI, 4000000);
+
+    sdTaskSuccess = result;
+    sdTaskComplete = true;
+
+    Serial.printf("Task: SD.begin() returned %s\n", result ? "SUCCESS" : "FAILURE");
+    vTaskDelete(NULL);  // Delete self
+}
+
+// Try to initialize SD with timeout
+bool trySDInit(int csPin, uint32_t timeoutMs) {
+    sdTaskComplete = false;
+    sdTaskSuccess = false;
+    sdTaskHandle = nullptr;
+
+    // Create task
+    BaseType_t created = xTaskCreate(
+        sdInitTask,
+        "sd_init",
+        4096,
+        (void*)(intptr_t)csPin,
+        1,
+        &sdTaskHandle
+    );
+
+    if (created != pdPASS) {
+        Serial.println("ERROR: Failed to create SD init task");
+        return false;
+    }
+
+    // Wait for completion or timeout
+    uint32_t startTime = millis();
+    while (!sdTaskComplete && (millis() - startTime < timeoutMs)) {
+        delay(100);
+        Serial.print(".");
+    }
+    Serial.println();
+
+    if (!sdTaskComplete) {
+        Serial.println("TIMEOUT: SD.begin() hung, killing task...");
+        if (sdTaskHandle != nullptr) {
+            vTaskDelete(sdTaskHandle);
+            sdTaskHandle = nullptr;
+        }
+        return false;
+    }
+
+    return sdTaskSuccess;
+}
 }
 
 void setup() {
@@ -80,49 +143,33 @@ void setup() {
     SPI.begin(kSdSckPin, kSdMisoPin, kSdMosiPin, kSdCsPin);
     delay(100);  // Give SPI bus time to stabilize
 
-    Serial.println(F("[7/8] Mounting SD"));
+    Serial.println(F("[7/8] Mounting SD with timeout protection"));
     Serial.println(F("Using official M5Cardputer SD pins"));
     Serial.printf("CS=%d, SCK=%d, MISO=%d, MOSI=%d\n",
                   kSdCsPin, kSdSckPin, kSdMisoPin, kSdMosiPin);
-
-    // Enable watchdog with 10 second timeout to prevent infinite hanging
-    esp_task_wdt_init(10, true);
-    esp_task_wdt_add(NULL);
-    Serial.println(F("Watchdog enabled (10s timeout)"));
+    Serial.printf("Timeout: %u ms\n", kSdTimeoutMs);
 
     bool sdReady = false;
 
-    // Attempt 1: Standard SD frequency (4MHz)
-    Serial.println(F("Attempt 1: SD.begin() at 4MHz..."));
-    esp_task_wdt_reset();
-    sdReady = SD.begin(kSdCsPin, SPI, 4000000);
-    esp_task_wdt_reset();
+    // Attempt 1: Official pins with task timeout
+    Serial.println(F("Attempt 1: Trying official pins..."));
+    sdReady = trySDInit(kSdCsPin, kSdTimeoutMs);
 
-    // Attempt 2: Lower frequency (1MHz) if first attempt failed
+    // Attempt 2: Try legacy pins if official failed
     if (!sdReady) {
-        Serial.println(F("Attempt 2: SD.begin() at 1MHz..."));
-        SD.end();
-        delay(200);
-        esp_task_wdt_reset();
-        sdReady = SD.begin(kSdCsPin, SPI, 1000000);
-        esp_task_wdt_reset();
-    }
-
-    // Attempt 3: Try alternative/legacy pin configuration
-    if (!sdReady) {
-        Serial.println(F("Attempt 3: Trying legacy pins (36/35/37/34)..."));
+        Serial.println(F("Attempt 2: Trying legacy pins (36/35/37/34)..."));
         SD.end();
         SPI.end();
         delay(200);
 
         // Reinitialize with legacy pins
         constexpr int legacyCS = 34, legacySCK = 36, legacyMISO = 35, legacyMOSI = 37;
+        Serial.printf("Legacy pins: CS=%d, SCK=%d, MISO=%d, MOSI=%d\n",
+                      legacyCS, legacySCK, legacyMISO, legacyMOSI);
         SPI.begin(legacySCK, legacyMISO, legacyMOSI, legacyCS);
         delay(100);
 
-        esp_task_wdt_reset();
-        sdReady = SD.begin(legacyCS, SPI, 4000000);
-        esp_task_wdt_reset();
+        sdReady = trySDInit(legacyCS, kSdTimeoutMs);
 
         if (sdReady) {
             Serial.println(F("SUCCESS: SD card works with legacy pins!"));
@@ -136,11 +183,10 @@ void setup() {
         Serial.println(F("  - SD card not inserted"));
         Serial.println(F("  - SD card corrupted/incompatible"));
         Serial.println(F("  - Hardware connection problem"));
+        Serial.println(F("  - SD.begin() is hanging (check Serial Monitor)"));
+    } else {
+        Serial.println(F("SD initialization completed successfully!"));
     }
-
-    // Disable watchdog after SD initialization
-    esp_task_wdt_delete(NULL);
-    Serial.println(F("Watchdog disabled"));
 
     M5.Display.fillRect(20, 96, 200, 10, kBgColor);
     M5.Display.setCursor(20, 96);
