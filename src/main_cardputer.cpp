@@ -855,23 +855,23 @@ void startBeaconSpam() {
     drawBeaconSpamScreen();
 }
 
+// REFATORADO: Usa DisplayHelper para renderização limpa
 void drawBeaconSpamScreen() {
-    M5.Display.clear(themeColors.bg);
+    DisplayHelper::clear(themeColors.bg);
     drawHeader("Beacon Spam");
-    
-    M5.Display.setTextColor(themeColors.fg, themeColors.bg);
-    M5.Display.setCursor(4, 24);
-    M5.Display.printf("SSID: %s\n", customSSID.c_str());
-    M5.Display.println("Channel: 1-11 (hopping)");
-    M5.Display.println();
-    
-    M5.Display.setTextColor(themeColors.success, themeColors.bg);
-    M5.Display.printf("Beacons sent: %lu\n", beaconCount);
-    
+
+    char ssidInfo[50];
+    snprintf(ssidInfo, sizeof(ssidInfo), "SSID: %s", customSSID.c_str());
+    DisplayHelper::drawText(ssidInfo, 4, 24, themeColors.fg);
+    DisplayHelper::drawText("Channel: 1-11 (hopping)", 4, 34, themeColors.fg);
+
+    char beaconsInfo[40];
+    snprintf(beaconsInfo, sizeof(beaconsInfo), "Beacons sent: %lu", beaconCount);
+    DisplayHelper::drawText(beaconsInfo, 4, 50, themeColors.success);
+
     if (isBeaconSpamming) {
-        M5.Display.setTextColor(themeColors.error, themeColors.bg);
-        M5.Display.println("\nFLOODING ACTIVE!");
-        
+        DisplayHelper::drawText("FLOODING ACTIVE!", 4, 70, themeColors.error);
+
         // Beacon pulse animation (expanding circles)
         static int pulseRadius = 0;
         static unsigned long lastPulse = 0;
@@ -879,7 +879,7 @@ void drawBeaconSpamScreen() {
             pulseRadius = (pulseRadius + 5) % 30;
             lastPulse = millis();
         }
-        
+
         int centerX = 200;
         int centerY = 95;
         M5.Display.drawCircle(centerX, centerY, pulseRadius, themeColors.primary);
@@ -889,21 +889,13 @@ void drawBeaconSpamScreen() {
         if (pulseRadius > 20) {
             M5.Display.drawCircle(centerX, centerY, pulseRadius - 20, TFT_DARKGREY);
         }
-        
-        // Beacon icon
-        M5.Display.setTextColor(themeColors.secondary, themeColors.bg);
-        M5.Display.setCursor(195, 90);
-        M5.Display.print("📡");
-        
+
+        DisplayHelper::drawText("📡", 195, 90, themeColors.secondary);
     } else {
-        M5.Display.setTextColor(themeColors.secondary, themeColors.bg);
-        M5.Display.println("\nPAUSED");
+        DisplayHelper::drawText("PAUSED", 4, 70, themeColors.secondary);
     }
-    
-    M5.Display.setTextColor(themeColors.secondary, themeColors.bg);
-    M5.Display.setCursor(4, SCREEN_HEIGHT - 24);
-    M5.Display.println("[SPACE]Pause [ESC]Stop");
-    
+
+    DisplayHelper::drawText("[SPACE]Pause [ESC]Stop", 4, SCREEN_HEIGHT - 24, themeColors.secondary);
     drawStatusBar();
 }
 
@@ -978,22 +970,20 @@ void startProbeFlood() {
     drawProbeFloodScreen();
 }
 
+// REFATORADO: Usa DisplayHelper para código mais limpo
 void drawProbeFloodScreen() {
-    M5.Display.clear(themeColors.bg);
+    DisplayHelper::clear(themeColors.bg);
     drawHeader("Probe Flood");
-    
-    M5.Display.setTextColor(themeColors.fg, themeColors.bg);
-    M5.Display.setCursor(4, 24);
-    M5.Display.println("Random Probe Requests");
-    M5.Display.println("Channel: 1-11 (hopping)");
-    M5.Display.println();
-    
-    M5.Display.setTextColor(themeColors.primary, themeColors.bg);
-    M5.Display.printf("Probes sent: %lu\n", probeCount);
-    
+
+    DisplayHelper::drawText("Random Probe Requests", 4, 24, themeColors.fg);
+    DisplayHelper::drawText("Channel: 1-11 (hopping)", 4, 34, themeColors.fg);
+
+    char probesInfo[40];
+    snprintf(probesInfo, sizeof(probesInfo), "Probes sent: %lu", probeCount);
+    DisplayHelper::drawText(probesInfo, 4, 50, themeColors.primary);
+
     if (isProbeFlooding) {
-        M5.Display.setTextColor(themeColors.error, themeColors.bg);
-        M5.Display.println("\nFLOODING ACTIVE!");
+        DisplayHelper::drawText("FLOODING ACTIVE!", 4, 70, themeColors.error);
         
         // Scatter particle effect (probe requests everywhere)
         static int particles[10][3]; // x, y, life
@@ -1029,14 +1019,10 @@ void drawProbeFloodScreen() {
         if (wavePos > 5) M5.Display.drawFastVLine(wavePos - 5, 90, 20, TFT_BLUE);
         
     } else {
-        M5.Display.setTextColor(themeColors.secondary, themeColors.bg);
-        M5.Display.println("\nPAUSED");
+        DisplayHelper::drawText("PAUSED", 4, 70, themeColors.secondary);
     }
-    
-    M5.Display.setTextColor(themeColors.secondary, themeColors.bg);
-    M5.Display.setCursor(4, SCREEN_HEIGHT - 24);
-    M5.Display.println("[SPACE]Pause [ESC]Stop");
-    
+
+    DisplayHelper::drawText("[SPACE]Pause [ESC]Stop", 4, SCREEN_HEIGHT - 24, themeColors.secondary);
     drawStatusBar();
 }
 
@@ -1844,51 +1830,51 @@ void startFileManager() {
     drawFileManager();
 }
 
+// REFATORADO: Usa DisplayHelper para renderização organizada
 void drawFileManager() {
-    M5.Display.clear(themeColors.bg);
+    DisplayHelper::clear(themeColors.bg);
     drawHeader("File Manager");
-    
-    M5.Display.setTextColor(themeColors.primary, themeColors.bg);
-    M5.Display.setCursor(4, 16);
-    
+
     // Mostrar path atual (truncado se necessário)
     String displayPath = currentDir;
     if (displayPath.length() > 30) {
         displayPath = "..." + displayPath.substring(displayPath.length() - 27);
     }
-    M5.Display.printf("Dir: %s", displayPath.c_str());
-    
+    char pathInfo[50];
+    snprintf(pathInfo, sizeof(pathInfo), "Dir: %s", displayPath.c_str());
+    DisplayHelper::drawText(pathInfo, 4, 16, themeColors.primary);
+
     // Mostrar arquivos (6 por vez)
     int maxVisible = 6;
     int startIdx = fileListScroll;
     int endIdx = min(startIdx + maxVisible, (int)fileList.size());
-    
+
     for (int i = startIdx; i < endIdx; i++) {
         int y = 32 + (i - startIdx) * 14;
-        M5.Display.setCursor(4, y);
-        
-        if (i == selectedFile) {
-            M5.Display.setTextColor(TFT_BLACK, TFT_GREEN);
-        } else {
-            M5.Display.setTextColor(themeColors.fg, themeColors.bg);
-        }
-        
+        bool isSelected = (i == selectedFile);
+
         String displayName = fileList[i];
         if (displayName.length() > 28) {
             displayName = displayName.substring(0, 25) + "...";
         }
-        M5.Display.println(displayName);
+
+        uint32_t textColor = isSelected ? TFT_BLACK : themeColors.fg;
+        uint32_t bgColor = isSelected ? TFT_GREEN : themeColors.bg;
+
+        if (isSelected) {
+            DisplayHelper::drawRect(0, y - 2, SCREEN_WIDTH, 14, bgColor);
+        }
+        DisplayHelper::drawText(displayName.c_str(), 4, y, textColor);
     }
-    
-    M5.Display.setTextColor(themeColors.secondary, themeColors.bg);
-    M5.Display.setCursor(4, SCREEN_HEIGHT - 24);
-    M5.Display.printf("%d/%d files", selectedFile + 1, fileList.size());
-    
-    M5.Display.setCursor(4, SCREEN_HEIGHT - 12);
+
+    char filesInfo[30];
+    snprintf(filesInfo, sizeof(filesInfo), "%d/%d files", selectedFile + 1, fileList.size());
+    DisplayHelper::drawText(filesInfo, 4, SCREEN_HEIGHT - 24, themeColors.secondary);
+
     if (sdCardAvailable) {
-        M5.Display.println("[Enter]Open [D]Delete [ESC]Back");
+        DisplayHelper::drawText("[Enter]Open [D]Delete [ESC]Back", 4, SCREEN_HEIGHT - 12, themeColors.secondary);
     } else {
-        M5.Display.println("SD Card not available!");
+        DisplayHelper::drawText("SD Card not available!", 4, SCREEN_HEIGHT - 12, themeColors.error);
     }
 }
 
@@ -2726,91 +2712,92 @@ void startStatistics() {
     drawStatistics();
 }
 
+// REFATORADO: Usa DisplayHelper para estatísticas organizadas
 void drawStatistics() {
-    M5.Display.clear(themeColors.bg);
+    DisplayHelper::clear(themeColors.bg);
     drawHeader("Statistics Dashboard");
-    
+
     // Session time
     unsigned long uptime = (millis() - sessionStartTime) / 1000;
     unsigned long hours = uptime / 3600;
     unsigned long minutes = (uptime % 3600) / 60;
     unsigned long seconds = uptime % 60;
-    
-    M5.Display.setTextColor(themeColors.primary, themeColors.bg);
-    M5.Display.setCursor(4, 20);
-    M5.Display.printf("Session: %02luh %02lum %02lus", hours, minutes, seconds);
-    
+
+    char sessionInfo[40];
+    snprintf(sessionInfo, sizeof(sessionInfo), "Session: %02luh %02lum %02lus", hours, minutes, seconds);
+    DisplayHelper::drawText(sessionInfo, 4, 20, themeColors.primary);
+
     // WiFi Statistics
-    M5.Display.setTextColor(themeColors.success, themeColors.bg);
-    M5.Display.setCursor(4, 35);
-    M5.Display.print("=== WiFi ===");
-    M5.Display.setTextColor(themeColors.fg, themeColors.bg);
-    M5.Display.setCursor(4, 45);
-    M5.Display.printf("Scans: %lu", totalScans);
-    M5.Display.setCursor(100, 45);
-    M5.Display.printf("Networks: %lu", totalNetworksFound);
-    M5.Display.setCursor(4, 53);
-    M5.Display.printf("Logged: %lu", totalAPsLogged);
-    
+    DisplayHelper::drawText("=== WiFi ===", 4, 35, themeColors.success);
+
+    char scansInfo[20];
+    snprintf(scansInfo, sizeof(scansInfo), "Scans: %lu", totalScans);
+    DisplayHelper::drawText(scansInfo, 4, 45, themeColors.fg);
+
+    char networksInfo[25];
+    snprintf(networksInfo, sizeof(networksInfo), "Networks: %lu", totalNetworksFound);
+    DisplayHelper::drawText(networksInfo, 100, 45, themeColors.fg);
+
+    char loggedInfo[20];
+    snprintf(loggedInfo, sizeof(loggedInfo), "Logged: %lu", totalAPsLogged);
+    DisplayHelper::drawText(loggedInfo, 4, 53, themeColors.fg);
+
     // Attack Statistics with bar graphs
-    M5.Display.setTextColor(themeColors.error, themeColors.bg);
-    M5.Display.setCursor(4, 64);
-    M5.Display.print("=== Attacks ===");
-    M5.Display.setTextColor(themeColors.fg, themeColors.bg);
-    
+    DisplayHelper::drawText("=== Attacks ===", 4, 64, themeColors.error);
+
     // Deauth bar
-    M5.Display.setCursor(4, 74);
-    M5.Display.printf("Deauth: %lu", totalDeauthSent);
+    char deauthInfo[25];
+    snprintf(deauthInfo, sizeof(deauthInfo), "Deauth: %lu", totalDeauthSent);
+    DisplayHelper::drawText(deauthInfo, 4, 74, themeColors.fg);
     if (totalDeauthSent > 0) {
         int barLen = min(50, (int)(totalDeauthSent / 100));
         M5.Display.fillRect(120, 74, barLen, 6, themeColors.error);
     }
     
     // Beacon bar
-    M5.Display.setCursor(4, 82);
-    M5.Display.printf("Beacon: %lu", totalBeaconsSent);
+    char beaconInfo[25];
+    snprintf(beaconInfo, sizeof(beaconInfo), "Beacon: %lu", totalBeaconsSent);
+    DisplayHelper::drawText(beaconInfo, 4, 82, themeColors.fg);
     if (totalBeaconsSent > 0) {
         int barLen = min(50, (int)(totalBeaconsSent / 100));
-        M5.Display.fillRect(120, 82, barLen, 6, themeColors.warning);
+        DisplayHelper::drawRect(120, 82, barLen, 6, themeColors.warning);
     }
-    
+
     // Probe bar
-    M5.Display.setCursor(4, 90);
-    M5.Display.printf("Probe: %lu", totalProbesSent);
+    char probeInfo[25];
+    snprintf(probeInfo, sizeof(probeInfo), "Probe: %lu", totalProbesSent);
+    DisplayHelper::drawText(probeInfo, 4, 90, themeColors.fg);
     if (totalProbesSent > 0) {
         int barLen = min(50, (int)(totalProbesSent / 100));
-        M5.Display.fillRect(120, 90, barLen, 6, themeColors.secondary);
+        DisplayHelper::drawRect(120, 90, barLen, 6, themeColors.secondary);
     }
-    
+
     // Capture Statistics
-    M5.Display.setTextColor(themeColors.secondary, themeColors.bg);
-    M5.Display.setCursor(4, 101);
-    M5.Display.print("=== Captures ===");
-    M5.Display.setTextColor(themeColors.fg, themeColors.bg);
-    M5.Display.setCursor(4, 111);
-    M5.Display.printf("Handshakes: %lu  Creds: %lu", 
-                      totalHandshakesCaptured, totalCredentialsCaptured);
-    
+    DisplayHelper::drawText("=== Captures ===", 4, 101, themeColors.secondary);
+
+    char capturesInfo[50];
+    snprintf(capturesInfo, sizeof(capturesInfo), "Handshakes: %lu  Creds: %lu",
+             totalHandshakesCaptured, totalCredentialsCaptured);
+    DisplayHelper::drawText(capturesInfo, 4, 111, themeColors.fg);
+
     // Memory usage indicator
     uint32_t freeHeap = ESP.getFreeHeap();
     uint32_t totalHeap = ESP.getHeapSize();
     int memPercent = ((totalHeap - freeHeap) * 100) / totalHeap;
-    
-    M5.Display.setTextColor(themeColors.primary, themeColors.bg);
-    M5.Display.setCursor(4, 120);
-    M5.Display.printf("RAM: %d%% ", memPercent);
-    
+
+    char ramInfo[20];
+    snprintf(ramInfo, sizeof(ramInfo), "RAM: %d%% ", memPercent);
+    DisplayHelper::drawText(ramInfo, 4, 120, themeColors.primary);
+
     // RAM bar
     int ramBar = (memPercent * 60) / 100;
-    uint16_t ramColor = (memPercent > 80) ? themeColors.error : 
+    uint16_t ramColor = (memPercent > 80) ? themeColors.error :
                         (memPercent > 50) ? themeColors.warning : themeColors.success;
-    M5.Display.drawRect(50, 120, 62, 7, themeColors.fg);
-    M5.Display.fillRect(51, 121, ramBar, 5, ramColor);
-    
+    DisplayHelper::drawBorder(50, 120, 62, 7, themeColors.fg);
+    DisplayHelper::drawRect(51, 121, ramBar, 5, ramColor);
+
     // Footer
-    M5.Display.setTextColor(themeColors.secondary, themeColors.bg);
-    M5.Display.setCursor(4, SCREEN_HEIGHT - 10);
-    M5.Display.print("[ESC] Back  [R] Reset Stats");
+    DisplayHelper::drawText("[ESC] Back  [R] Reset Stats", 4, SCREEN_HEIGHT - 10, themeColors.secondary);
 }
 
 // ==================== WPS ATTACK ====================
