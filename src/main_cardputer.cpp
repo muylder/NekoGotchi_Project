@@ -1317,15 +1317,18 @@ void startEvilPortal() {
     drawEvilPortalScreen();
 }
 
+// REFATORADO: Usa DisplayHelper para texto, mantém animações nativas
 void drawEvilPortalScreen() {
-    M5.Display.clear(themeColors.bg);
+    DisplayHelper::clear(themeColors.bg);
     drawHeader("Evil Portal");
-    
-    M5.Display.setTextColor(themeColors.fg, themeColors.bg);
-    M5.Display.setCursor(4, 24);
-    M5.Display.printf("SSID: %s\n", customSSID.c_str());
-    M5.Display.printf("IP: %s\n", WiFi.softAPIP().toString().c_str());
-    M5.Display.println();
+
+    char ssidInfo[50];
+    snprintf(ssidInfo, sizeof(ssidInfo), "SSID: %s", customSSID.c_str());
+    DisplayHelper::drawText(ssidInfo, 4, 24, themeColors.fg);
+
+    char ipInfo[50];
+    snprintf(ipInfo, sizeof(ipInfo), "IP: %s", WiFi.softAPIP().toString().c_str());
+    DisplayHelper::drawText(ipInfo, 4, 34, themeColors.fg);
     
     // ===== ANIMATION: Connection Circles, Credential Sparkle, AP Blinking =====
     static unsigned long lastBlink = 0;
@@ -1363,12 +1366,13 @@ void drawEvilPortalScreen() {
         }
     }
     
-    M5.Display.setTextColor(themeColors.primary, themeColors.bg);
-    M5.Display.setCursor(4, 50);
-    M5.Display.printf("Clients: %d\n", WiFi.softAPgetStationNum());
-    
-    M5.Display.setTextColor(themeColors.secondary, themeColors.bg);
-    M5.Display.printf("Captured: %d\n", credentialsCaptured);
+    char clientsInfo[30];
+    snprintf(clientsInfo, sizeof(clientsInfo), "Clients: %d", WiFi.softAPgetStationNum());
+    DisplayHelper::drawText(clientsInfo, 4, 50, themeColors.primary);
+
+    char capturedInfo[30];
+    snprintf(capturedInfo, sizeof(capturedInfo), "Captured: %d", credentialsCaptured);
+    DisplayHelper::drawText(capturedInfo, 4, 60, themeColors.secondary);
     
     // Credential capture sparkle effect
     static int lastCaptureCount = 0;
@@ -1392,30 +1396,28 @@ void drawEvilPortalScreen() {
     }
     
     if (credentialsCaptured > 0) {
-        M5.Display.println();
-        M5.Display.setTextColor(themeColors.success, themeColors.bg);
-        M5.Display.println("Last capture:");
-        M5.Display.setTextColor(themeColors.fg, themeColors.bg);
-        
+        DisplayHelper::drawText("Last capture:", 4, 80, themeColors.success);
+
         // Truncar se muito longo
         String user = capturedUsername;
         String pass = capturedPassword;
         if (user.length() > 22) user = user.substring(0, 19) + "...";
         if (pass.length() > 22) pass = pass.substring(0, 19) + "...";
-        
-        M5.Display.printf("U: %s\n", user.c_str());
-        M5.Display.printf("P: %s\n", pass.c_str());
+
+        char userInfo[30];
+        snprintf(userInfo, sizeof(userInfo), "U: %s", user.c_str());
+        DisplayHelper::drawText(userInfo, 4, 90, themeColors.fg);
+
+        char passInfo[30];
+        snprintf(passInfo, sizeof(passInfo), "P: %s", pass.c_str());
+        DisplayHelper::drawText(passInfo, 4, 100, themeColors.fg);
     }
-    
+
     if (portalRunning) {
-        M5.Display.setTextColor(themeColors.error, themeColors.bg);
-        M5.Display.setCursor(4, SCREEN_HEIGHT - 32);
-        M5.Display.println("PORTAL ACTIVE!");
+        DisplayHelper::drawText("PORTAL ACTIVE!", 4, SCREEN_HEIGHT - 32, themeColors.error);
     }
-    
-    M5.Display.setTextColor(themeColors.secondary, themeColors.bg);
-    M5.Display.setCursor(4, SCREEN_HEIGHT - 16);
-    M5.Display.println("[ESC]Stop");
+
+    DisplayHelper::drawText("[ESC]Stop", 4, SCREEN_HEIGHT - 16, themeColors.secondary);
     
     drawStatusBar();
 }
@@ -1590,19 +1592,21 @@ void startHandshakeCapture() {
     drawHandshakeScreen();
 }
 
+// REFATORADO: Usa DisplayHelper para texto, mantém animações
 void drawHandshakeScreen() {
-    M5.Display.clear(themeColors.bg);
+    DisplayHelper::clear(themeColors.bg);
     drawHeader("Handshake Capture");
-    
-    M5.Display.setTextColor(themeColors.fg, themeColors.bg);
-    M5.Display.setCursor(4, 24);
-    M5.Display.printf("Target: %.18s\n", networks[selectedNetwork].ssid.c_str());
-    M5.Display.printf("Channel: %d\n", networks[selectedNetwork].channel);
-    M5.Display.println();
-    
+
+    char targetInfo[50];
+    snprintf(targetInfo, sizeof(targetInfo), "Target: %.18s", networks[selectedNetwork].ssid.c_str());
+    DisplayHelper::drawText(targetInfo, 4, 24, themeColors.fg);
+
+    char channelInfo[30];
+    snprintf(channelInfo, sizeof(channelInfo), "Channel: %d", networks[selectedNetwork].channel);
+    DisplayHelper::drawText(channelInfo, 4, 34, themeColors.fg);
+
     // Status das mensagens
-    M5.Display.setTextColor(themeColors.primary, themeColors.bg);
-    M5.Display.println("4-Way Handshake:");
+    DisplayHelper::drawText("4-Way Handshake:", 4, 50, themeColors.primary);
     
     // Progress bars para cada mensagem
     int barY = 64;
@@ -1649,14 +1653,13 @@ void drawHandshakeScreen() {
         barY += 12;
     }
     
-    M5.Display.setCursor(4, barY + 4);
-    M5.Display.setTextColor(themeColors.secondary, themeColors.bg);
-    M5.Display.printf("EAPOL packets: %d\n", eapolPackets);
-    
+    char eapolInfo[30];
+    snprintf(eapolInfo, sizeof(eapolInfo), "EAPOL packets: %d", eapolPackets);
+    DisplayHelper::drawText(eapolInfo, 4, barY + 4, themeColors.secondary);
+
     if (handshakeComplete) {
-        M5.Display.setTextColor(themeColors.success, themeColors.bg);
-        M5.Display.println("COMPLETE! ✨");
-        
+        DisplayHelper::drawText("COMPLETE! ✨", 4, barY + 18, themeColors.success);
+
         // Success sparkles
         for (int i = 0; i < 5; i++) {
             if (millis() % (200 + i * 50) < 100) {
@@ -1664,13 +1667,10 @@ void drawHandshakeScreen() {
             }
         }
     } else if (isCapturingHandshake) {
-        M5.Display.setTextColor(themeColors.error, themeColors.bg);
-        M5.Display.println("LISTENING...");
+        DisplayHelper::drawText("LISTENING...", 4, barY + 18, themeColors.error);
     }
-    
-    M5.Display.setTextColor(themeColors.secondary, themeColors.bg);
-    M5.Display.setCursor(4, SCREEN_HEIGHT - 24);
-    M5.Display.println("[D]Deauth [ESC]Stop");
+
+    DisplayHelper::drawText("[D]Deauth [ESC]Stop", 4, SCREEN_HEIGHT - 24, themeColors.secondary);
     
     drawStatusBar();
 }
@@ -2244,14 +2244,12 @@ void startPacketMonitor() {
     drawPacketMonitor();
 }
 
+// REFATORADO: Usa DisplayHelper para texto, mantém gráficos nativos
 void drawPacketMonitor() {
-    M5.Display.clear(themeColors.bg);
+    DisplayHelper::clear(themeColors.bg);
     drawHeader("Packet Monitor");
-    
-    M5.Display.setTextColor(themeColors.fg, themeColors.bg);
-    M5.Display.setCursor(4, 20);
-    M5.Display.println("Channel: 6");
-    M5.Display.println();
+
+    DisplayHelper::drawText("Channel: 6", 4, 20, themeColors.fg);
     
     // ===== ANIMATION: Flying Packets & Protocol Color Coding =====
     static int flyingPackets[5][3]; // x, y, type (0=beacon, 1=mgmt, 2=data)
@@ -2311,22 +2309,25 @@ void drawPacketMonitor() {
         lastGraphUpdate = millis();
     }
     
-    M5.Display.setTextColor(themeColors.primary, themeColors.bg);
-    M5.Display.setCursor(4, 35);
-    M5.Display.printf("Total Packets: %lu\n", totalPackets);
-    
-    M5.Display.setTextColor(themeColors.success, themeColors.bg);
-    M5.Display.printf("Beacons: %lu\n", beaconPackets);
-    
-    M5.Display.setTextColor(themeColors.secondary, themeColors.bg);
-    M5.Display.printf("Management: %lu\n", mgmtPackets);
-    
-    M5.Display.setTextColor(themeColors.primary, themeColors.bg);
-    M5.Display.printf("Data: %lu\n", dataPackets);
-    
-    M5.Display.println();
-    M5.Display.setTextColor(themeColors.fg, themeColors.bg);
-    M5.Display.printf("Rate: %d pkt/s\n", packetsPerSecond);
+    char totalInfo[40];
+    snprintf(totalInfo, sizeof(totalInfo), "Total Packets: %lu", totalPackets);
+    DisplayHelper::drawText(totalInfo, 4, 35, themeColors.primary);
+
+    char beaconsInfo[30];
+    snprintf(beaconsInfo, sizeof(beaconsInfo), "Beacons: %lu", beaconPackets);
+    DisplayHelper::drawText(beaconsInfo, 4, 45, themeColors.success);
+
+    char mgmtInfo[30];
+    snprintf(mgmtInfo, sizeof(mgmtInfo), "Management: %lu", mgmtPackets);
+    DisplayHelper::drawText(mgmtInfo, 4, 55, themeColors.secondary);
+
+    char dataInfo[30];
+    snprintf(dataInfo, sizeof(dataInfo), "Data: %lu", dataPackets);
+    DisplayHelper::drawText(dataInfo, 4, 65, themeColors.primary);
+
+    char rateInfo[30];
+    snprintf(rateInfo, sizeof(rateInfo), "Rate: %d pkt/s", packetsPerSecond);
+    DisplayHelper::drawText(rateInfo, 4, 80, themeColors.fg);
     
     // Real-time packet rate graph
     M5.Display.drawRect(3, 94, 234, 26, TFT_DARKGREY);
@@ -2534,17 +2535,20 @@ void startGPSWardriving() {
     Serial.println("🛰️ GPS Wardriving Started!");
 }
 
+// REFATORADO: Usa DisplayHelper para texto, mantém animações nativas
 void drawGPSWardriving() {
-    M5.Display.clear(themeColors.bg);
+    DisplayHelper::clear(themeColors.bg);
     drawHeader("GPS Wardriving");
-    M5.Display.setTextColor(themeColors.fg, themeColors.bg);
-    
+
     int y = 20;
-    M5.Display.setCursor(4, y);
-    
+
     // GPS Status com ícone animado
-    M5.Display.setTextColor(gpsFixed ? TFT_GREEN : (gpsAvailable ? TFT_YELLOW : TFT_RED), TFT_BLACK);
-    M5.Display.printf("GPS: %s", gpsFixed ? "FIXED" : (gpsAvailable ? "SEARCHING" : "NO MODULE"));
+    const char* gpsStatus = gpsFixed ? "FIXED" : (gpsAvailable ? "SEARCHING" : "NO MODULE");
+    uint32_t statusColor = gpsFixed ? TFT_GREEN : (gpsAvailable ? TFT_YELLOW : TFT_RED);
+
+    char gpsInfo[50];
+    snprintf(gpsInfo, sizeof(gpsInfo), "GPS: %s", gpsStatus);
+    DisplayHelper::drawText(gpsInfo, 4, y, statusColor);
     
     // Satélite animado
     static int satFrame = 0;
@@ -2559,9 +2563,9 @@ void drawGPSWardriving() {
     
     if (gpsAvailable) {
         // Signal strength bars
-        M5.Display.setTextColor(themeColors.primary, themeColors.bg);
-        M5.Display.setCursor(4, y);
-        M5.Display.printf("Sats: %d", gpsSatellites);
+        char satsInfo[20];
+        snprintf(satsInfo, sizeof(satsInfo), "Sats: %d", gpsSatellites);
+        DisplayHelper::drawText(satsInfo, 4, y, themeColors.primary);
         
         // Animated signal bars
         int barX = 70;
@@ -2574,18 +2578,24 @@ void drawGPSWardriving() {
             M5.Display.fillRect(barX + i * 8, y + 12 - barHeight, 6, barHeight, barColor);
         }
         
-        M5.Display.setCursor(120, y);
-        M5.Display.printf("HDOP: %.1f", gpsHDOP);
-        
+        char hdopInfo[20];
+        snprintf(hdopInfo, sizeof(hdopInfo), "HDOP: %.1f", gpsHDOP);
+        DisplayHelper::drawText(hdopInfo, 120, y, themeColors.primary);
+
         y += 18;
-        M5.Display.setCursor(4, y);
-        M5.Display.printf("Lat: %.6f", currentLat);
+        char latInfo[30];
+        snprintf(latInfo, sizeof(latInfo), "Lat: %.6f", currentLat);
+        DisplayHelper::drawText(latInfo, 4, y, themeColors.fg);
+
         y += 12;
-        M5.Display.setCursor(4, y);
-        M5.Display.printf("Lon: %.6f", currentLon);
+        char lonInfo[30];
+        snprintf(lonInfo, sizeof(lonInfo), "Lon: %.6f", currentLon);
+        DisplayHelper::drawText(lonInfo, 4, y, themeColors.fg);
+
         y += 12;
-        M5.Display.setCursor(4, y);
-        M5.Display.printf("Alt: %.1fm Speed: %.1fkm/h", currentAlt, currentSpeed);
+        char altSpeedInfo[50];
+        snprintf(altSpeedInfo, sizeof(altSpeedInfo), "Alt: %.1fm Speed: %.1fkm/h", currentAlt, currentSpeed);
+        DisplayHelper::drawText(altSpeedInfo, 4, y, themeColors.fg);
         y += 12;
         
         // Radar scan animation
@@ -2607,33 +2617,30 @@ void drawGPSWardriving() {
             if (angle > 6.28) angle = 0;
         }
     } else {
-        M5.Display.setTextColor(themeColors.secondary, themeColors.bg);
-        M5.Display.setCursor(4, y);
-        M5.Display.println("GPS not connected");
-        M5.Display.setCursor(4, y + 12);
-        M5.Display.println("Logging at 0,0");
+        DisplayHelper::drawText("GPS not connected", 4, y, themeColors.secondary);
+        DisplayHelper::drawText("Logging at 0,0", 4, y + 12, themeColors.secondary);
         y += 24;
     }
-    
+
     // Stats
-    M5.Display.setTextColor(themeColors.fg, themeColors.bg);
-    M5.Display.setCursor(4, y);
-    M5.Display.printf("\nNetworks: %d\n", wifiLogged);
+    char networksInfo[30];
+    snprintf(networksInfo, sizeof(networksInfo), "Networks: %d", wifiLogged);
+    DisplayHelper::drawText(networksInfo, 4, y + 10, themeColors.fg);
+
     y += 22;
-    M5.Display.setCursor(4, y);
-    M5.Display.printf("GPX Points: %d\n", gpxPointCount);
+    char gpxInfo[30];
+    snprintf(gpxInfo, sizeof(gpxInfo), "GPX Points: %d", gpxPointCount);
+    DisplayHelper::drawText(gpxInfo, 4, y, themeColors.fg);
+
     y += 12;
-    M5.Display.setCursor(4, y);
-    M5.Display.printf("Status: %s\n", isWardriving ? "SCANNING" : "PAUSED");
-    
+    char statusInfo[30];
+    snprintf(statusInfo, sizeof(statusInfo), "Status: %s", isWardriving ? "SCANNING" : "PAUSED");
+    DisplayHelper::drawText(statusInfo, 4, y, themeColors.fg);
+
     // Controls
-    M5.Display.setTextColor(themeColors.secondary, themeColors.bg);
-    M5.Display.setCursor(4, SCREEN_HEIGHT - 30);
-    M5.Display.println("[SPACE] Start/Stop");
-    M5.Display.setCursor(4, SCREEN_HEIGHT - 20);
-    M5.Display.println("[S] Scan Now");
-    M5.Display.setCursor(4, SCREEN_HEIGHT - 10);
-    M5.Display.println("[ESC] Back");
+    DisplayHelper::drawText("[SPACE] Start/Stop", 4, SCREEN_HEIGHT - 30, themeColors.secondary);
+    DisplayHelper::drawText("[S] Scan Now", 4, SCREEN_HEIGHT - 20, themeColors.secondary);
+    DisplayHelper::drawText("[ESC] Back", 4, SCREEN_HEIGHT - 10, themeColors.secondary);
 }
 
 void updateGPSWardriving() {
