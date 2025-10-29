@@ -129,21 +129,149 @@ struct LoRaDevice {
 };
 
 // ==================== VARIÁVEIS GLOBAIS ====================
-OperationMode currentMode = MODE_DASHBOARD;
+// MIGRADO: Variáveis WiFi/Attack movidas para STATE.*
+// Uso: STATE.wifi.*, STATE.deauth.*, STATE.beaconSpam.*, STATE.probeFlood.*
+OperationMode currentMode = MODE_DASHBOARD;  // TODO: Migrar para STATE.currentMode
 NetworkInfo networks[MAX_NETWORKS];
-int networkCount = 0;
-int selectedNetwork = 0;
-bool isDeauthing = false;
-bool isBeaconSpamming = false;
-bool isProbeFlooding = false;
-unsigned long lastDeauth = 0;
-unsigned long lastBeacon = 0;
-unsigned long lastProbe = 0;
-unsigned long deauthCount = 0;
-unsigned long beaconCount = 0;
-unsigned long probeCount = 0;
-int menuSelection = 0;
-String customSSID = "FREE_WiFi";
+// int networkCount = 0;  // MIGRADO → STATE.wifi.networkCount
+// int selectedNetwork = 0;  // MIGRADO → STATE.wifi.selectedNetwork
+// bool isDeauthing = false;  // MIGRADO → STATE.deauth.isDeauthing
+// bool isBeaconSpamming = false;  // MIGRADO → STATE.beaconSpam.isBeaconSpamming
+// bool isProbeFlooding = false;  // MIGRADO → STATE.probeFlood.isProbeFlooding
+// unsigned long lastDeauth = 0;  // MIGRADO → STATE.deauth.lastDeauth
+// unsigned long lastBeacon = 0;  // MIGRADO → STATE.beaconSpam.lastBeacon
+// unsigned long lastProbe = 0;  // MIGRADO → STATE.probeFlood.lastProbe
+// unsigned long deauthCount = 0;  // MIGRADO → STATE.deauth.deauthCount
+// unsigned long beaconCount = 0;  // MIGRADO → STATE.beaconSpam.beaconCount
+// unsigned long probeCount = 0;  // MIGRADO → STATE.probeFlood.probeCount
+int menuSelection = 0;  // TODO: Migrar para STATE.menu.selectedItem
+// String customSSID = "FREE_WiFi";  // MIGRADO → STATE.wifi.customSSID
+
+// ==================== ALIASES PARA STATEMANAGER ====================
+// Aliases temporários para compatibilidade (usando StateManager)
+// WiFi & Attacks
+#define networkCount STATE.wifi.networkCount
+#define selectedNetwork STATE.wifi.selectedNetwork
+#define isDeauthing STATE.deauth.isDeauthing
+#define isBeaconSpamming STATE.beaconSpam.isBeaconSpamming
+#define isProbeFlooding STATE.probeFlood.isProbeFlooding
+#define lastDeauth STATE.deauth.lastDeauth
+#define lastBeacon STATE.beaconSpam.lastBeacon
+#define lastProbe STATE.probeFlood.lastProbe
+#define deauthCount STATE.deauth.deauthCount
+#define beaconCount STATE.beaconSpam.beaconCount
+#define probeCount STATE.probeFlood.probeCount
+#define customSSID STATE.wifi.customSSID
+
+// Handshake
+#define isCapturingHandshake STATE.handshake.isCapturingHandshake
+#define eapolPackets STATE.handshake.eapolPackets
+#define captureStartTime STATE.handshake.captureStartTime
+#define handshakeComplete STATE.handshake.handshakeComplete
+
+// Evil Portal
+#define portalRunning STATE.portal.isRunning
+#define clientsConnected STATE.portal.connectedClients
+#define credentialsCaptured STATE.portal.capturedCredentials
+#define capturedUsername STATE.portal.capturedUsername
+#define capturedPassword STATE.portal.capturedPassword
+#define portalStartTime STATE.portal.portalStartTime
+#define customPortalHTML STATE.portal.customPortalHTML
+#define useCustomPortal STATE.portal.useCustomPortal
+
+// File Manager
+#define sdCardAvailable STATE.sdCardAvailable
+#define currentDir STATE.fileManager.currentPath
+#define selectedFile STATE.fileManager.selectedItem
+#define fileListScroll STATE.fileManager.scrollOffset
+
+// Channel Analyzer
+#define channelCount STATE.channelAnalyzer.channelCount
+#define channelMaxRSSI STATE.channelAnalyzer.channelMaxRSSI
+#define bestChannel STATE.channelAnalyzer.bestChannel
+#define isAnalyzing STATE.channelAnalyzer.isAnalyzing
+#define analyzeStartTime STATE.channelAnalyzer.analyzeStartTime
+
+// Packet Monitor
+#define beaconPackets STATE.packetMonitor.beaconPackets
+#define dataPackets STATE.packetMonitor.dataPackets
+#define mgmtPackets STATE.packetMonitor.mgmtPackets
+#define totalPackets STATE.packetMonitor.totalPackets
+#define lastPacketTime STATE.packetMonitor.lastPacketTime
+#define packetsPerSecond STATE.packetMonitor.packetsPerSecond
+#define isMonitoring STATE.packetMonitor.isMonitoring
+
+// GPS Wardriving
+#define gpsAvailable STATE.gps.gpsAvailable
+#define currentLat STATE.gps.latitude
+#define currentLon STATE.gps.longitude
+#define currentAlt STATE.gps.altitude
+#define currentSpeed STATE.gps.speed
+#define gpsSatellites STATE.gps.satellites
+#define gpsFixed STATE.gps.gpsFixed
+#define gpsHDOP STATE.gps.hdop
+#define lastGPSUpdate STATE.gps.lastUpdate
+#define wifiLogged STATE.gps.wifiLogged
+#define isWardriving STATE.gps.isWardriving
+#define wardrivingStartTime STATE.gps.wardrivingStartTime
+#define wardrivingFile STATE.gps.wardrivingFile
+#define gpxTrackFile STATE.gps.gpxTrackFile
+#define gpxPointCount STATE.gps.gpxPointCount
+
+// Statistics
+#define sessionStartTime STATE.statistics.sessionStartTime
+#define totalScans STATE.statistics.totalScans
+#define totalNetworksFound STATE.statistics.totalNetworksFound
+#define totalDeauthSent STATE.statistics.totalDeauthSent
+#define totalBeaconsSent STATE.statistics.totalBeaconsSent
+#define totalProbesSent STATE.statistics.totalProbesSent
+#define totalHandshakesCaptured STATE.statistics.totalHandshakesCaptured
+#define totalCredentialsCaptured STATE.statistics.totalCredentialsCaptured
+#define totalAPsLogged STATE.statistics.totalAPsLogged
+
+// Config
+#define configFile STATE.config.configFile
+#define sessionFile STATE.config.sessionFile
+#define statsFile STATE.config.statsFile
+#define logFile STATE.config.logFile
+#define autoSaveEnabled STATE.config.autoSaveEnabled
+#define lastAutoSave STATE.config.lastAutoSave
+
+// WPS
+#define isWPSAttacking STATE.wps.isWPSAttacking
+#define wpsStartTime STATE.wps.wpsStartTime
+#define wpsPinsTried STATE.wps.wpsPinsTried
+#define wpsVulnerableAPs STATE.wps.wpsVulnerableAPs
+#define wpsTargetSSID STATE.wps.wpsTargetSSID
+#define wpsLastAttempt STATE.wps.wpsLastAttempt
+
+// IR Remote
+#define irAvailable STATE.ir.irAvailable
+#define irCodeCount STATE.ir.irCodeCount
+#define selectedIRCode STATE.ir.selectedIRCode
+#define isLearningIR STATE.ir.isLearningIR
+#define isTransmittingIR STATE.ir.isTransmittingIR
+#define irMode STATE.ir.irMode
+
+// RF 433MHz
+#define rf433Available STATE.rf.rf433Available
+#define rfCodeCount STATE.rf.rfCodeCount
+#define selectedRFCode STATE.rf.selectedRFCode
+#define isCapturingRF STATE.rf.isCapturingRF
+#define isReplayingRF STATE.rf.isReplayingRF
+
+// LoRa
+#define loraAvailable STATE.lora.loraAvailable
+#define loraDeviceCount STATE.lora.loraDeviceCount
+#define selectedLoRaDevice STATE.lora.selectedLoRaDevice
+#define isScanningLoRa STATE.lora.isScanningLoRa
+#define lastLoRaScan STATE.lora.lastLoRaScan
+#define loraPacketsReceived STATE.lora.loraPacketsReceived
+
+// Logs
+#define logCount STATE.log.logCount
+#define logViewScroll STATE.log.logViewScroll
+#define autoSaveLogsEnabled STATE.log.autoSaveLogsEnabled
 
 // RFID/NFC Module
 M5GotchiRFIDNFC* rfidModule = nullptr;
@@ -168,90 +296,90 @@ struct LogEntry {
     String message;
 };
 #define MAX_LOG_ENTRIES 50
-LogEntry logBuffer[MAX_LOG_ENTRIES];
-int logCount = 0;
-int logViewScroll = 0;
-bool autoSaveLogsEnabled = true;
+LogEntry logBuffer[MAX_LOG_ENTRIES];  // Mantém array local
+// int logCount = 0;  // MIGRADO → STATE.log.logCount
+// int logViewScroll = 0;  // MIGRADO → STATE.log.logViewScroll
+// bool autoSaveLogsEnabled = true;  // MIGRADO → STATE.log.autoSaveLogsEnabled
 
 // Handshake Capture
-bool isCapturingHandshake = false;
+// bool isCapturingHandshake = false;  // MIGRADO → STATE.handshake.isCapturingHandshake
 HandshakeInfo handshake;
-int eapolPackets = 0;
-unsigned long captureStartTime = 0;
-bool handshakeComplete = false;
+// int eapolPackets = 0;  // MIGRADO → STATE.handshake.eapolPackets
+// unsigned long captureStartTime = 0;  // MIGRADO → STATE.handshake.captureStartTime
+// bool handshakeComplete = false;  // MIGRADO → STATE.handshake.handshakeComplete
 
 // Evil Portal
 WebServer* webServer = nullptr;
 DNSServer* dnsServer = nullptr;
-bool portalRunning = false;
-int clientsConnected = 0;
-int credentialsCaptured = 0;
-String capturedUsername = "";
-String capturedPassword = "";
-unsigned long portalStartTime = 0;
-String customPortalHTML = "";
-bool useCustomPortal = false;
+// bool portalRunning = false;  // MIGRADO → STATE.portal.isRunning
+// int clientsConnected = 0;  // MIGRADO → STATE.portal.connectedClients
+// int credentialsCaptured = 0;  // MIGRADO → STATE.portal.capturedCredentials
+// String capturedUsername = "";  // MIGRADO → STATE.portal.capturedUsername
+// String capturedPassword = "";  // MIGRADO → STATE.portal.capturedPassword
+// unsigned long portalStartTime = 0;  // MIGRADO → STATE.portal.portalStartTime
+// String customPortalHTML = "";  // MIGRADO → STATE.portal.customPortalHTML
+// bool useCustomPortal = false;  // MIGRADO → STATE.portal.useCustomPortal
 
 // File Manager
-bool sdCardAvailable = false;
-String currentDir = "/";
+// bool sdCardAvailable = false;  // MIGRADO → STATE.sdCardAvailable
+// String currentDir = "/";  // MIGRADO → STATE.fileManager.currentPath
 std::vector<String> fileList;
-int selectedFile = 0;
-int fileListScroll = 0;
+// int selectedFile = 0;  // MIGRADO → STATE.fileManager.selectedItem
+// int fileListScroll = 0;  // MIGRADO → STATE.fileManager.scrollOffset
 
 // Channel Analyzer
-int channelCount[14] = {0}; // Canais 1-14
-int channelMaxRSSI[14] = {-100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100, -100};
-int bestChannel = 1;
-bool isAnalyzing = false;
-unsigned long analyzeStartTime = 0;
+// int channelCount[14] = {0};  // MIGRADO → STATE.channelAnalyzer.channelCount[]
+// int channelMaxRSSI[14] = {...};  // MIGRADO → STATE.channelAnalyzer.channelMaxRSSI[]
+// int bestChannel = 1;  // MIGRADO → STATE.channelAnalyzer.bestChannel
+// bool isAnalyzing = false;  // MIGRADO → STATE.channelAnalyzer.isAnalyzing
+// unsigned long analyzeStartTime = 0;  // MIGRADO → STATE.channelAnalyzer.analyzeStartTime
 
 // Packet Monitor
-unsigned long beaconPackets = 0;
-unsigned long dataPackets = 0;
-unsigned long mgmtPackets = 0;
-unsigned long totalPackets = 0;
-unsigned long lastPacketTime = 0;
-int packetsPerSecond = 0;
-bool isMonitoring = false;
+// unsigned long beaconPackets = 0;  // MIGRADO → STATE.packetMonitor.beaconPackets
+// unsigned long dataPackets = 0;  // MIGRADO → STATE.packetMonitor.dataPackets
+// unsigned long mgmtPackets = 0;  // MIGRADO → STATE.packetMonitor.mgmtPackets
+// unsigned long totalPackets = 0;  // MIGRADO → STATE.packetMonitor.totalPackets
+// unsigned long lastPacketTime = 0;  // MIGRADO → STATE.packetMonitor.lastPacketTime
+// int packetsPerSecond = 0;  // MIGRADO → STATE.packetMonitor.packetsPerSecond
+// bool isMonitoring = false;  // MIGRADO → STATE.packetMonitor.isMonitoring
 
 // GPS Wardriving
 TinyGPSPlus gps;
 HardwareSerial gpsSerial(1);  // Use UART1
-bool gpsAvailable = false;
-float currentLat = 0.0;
-float currentLon = 0.0;
-float currentAlt = 0.0;
-float currentSpeed = 0.0;
-int gpsSatellites = 0;
-bool gpsFixed = false;
-float gpsHDOP = 99.99;
-unsigned long lastGPSUpdate = 0;
-int wifiLogged = 0;
-bool isWardriving = false;
-unsigned long wardrivingStartTime = 0;
-String wardrivingFile = "/wardriving.csv";
-String gpxTrackFile = "/gps_track.gpx";
-int gpxPointCount = 0;
+// bool gpsAvailable = false;  // MIGRADO → STATE.gps.gpsAvailable
+// float currentLat = 0.0;  // MIGRADO → STATE.gps.latitude
+// float currentLon = 0.0;  // MIGRADO → STATE.gps.longitude
+// float currentAlt = 0.0;  // MIGRADO → STATE.gps.altitude
+// float currentSpeed = 0.0;  // MIGRADO → STATE.gps.speed
+// int gpsSatellites = 0;  // MIGRADO → STATE.gps.satellites
+// bool gpsFixed = false;  // MIGRADO → STATE.gps.gpsFixed
+// float gpsHDOP = 99.99;  // MIGRADO → STATE.gps.hdop
+// unsigned long lastGPSUpdate = 0;  // MIGRADO → STATE.gps.lastUpdate
+// int wifiLogged = 0;  // MIGRADO → STATE.gps.wifiLogged
+// bool isWardriving = false;  // MIGRADO → STATE.gps.isWardriving
+// unsigned long wardrivingStartTime = 0;  // MIGRADO → STATE.gps.wardrivingStartTime
+// String wardrivingFile = "/wardriving.csv";  // MIGRADO → STATE.gps.wardrivingFile
+// String gpxTrackFile = "/gps_track.gpx";  // MIGRADO → STATE.gps.gpxTrackFile
+// int gpxPointCount = 0;  // MIGRADO → STATE.gps.gpxPointCount
 
 // Statistics
-unsigned long sessionStartTime = 0;
-unsigned long totalScans = 0;
-unsigned long totalNetworksFound = 0;
-unsigned long totalDeauthSent = 0;
-unsigned long totalBeaconsSent = 0;
-unsigned long totalProbesSent = 0;
-unsigned long totalHandshakesCaptured = 0;
-unsigned long totalCredentialsCaptured = 0;
-unsigned long totalAPsLogged = 0;
+// unsigned long sessionStartTime = 0;  // MIGRADO → STATE.statistics.sessionStartTime
+// unsigned long totalScans = 0;  // MIGRADO → STATE.statistics.totalScans
+// unsigned long totalNetworksFound = 0;  // MIGRADO → STATE.statistics.totalNetworksFound
+// unsigned long totalDeauthSent = 0;  // MIGRADO → STATE.statistics.totalDeauthSent
+// unsigned long totalBeaconsSent = 0;  // MIGRADO → STATE.statistics.totalBeaconsSent
+// unsigned long totalProbesSent = 0;  // MIGRADO → STATE.statistics.totalProbesSent
+// unsigned long totalHandshakesCaptured = 0;  // MIGRADO → STATE.statistics.totalHandshakesCaptured
+// unsigned long totalCredentialsCaptured = 0;  // MIGRADO → STATE.statistics.totalCredentialsCaptured
+// unsigned long totalAPsLogged = 0;  // MIGRADO → STATE.statistics.totalAPsLogged
 
 // Persistence & Config
-String configFile = "/config.json";
-String sessionFile = "/session.json";
-String statsFile = "/stats.json";
-String logFile = "/system.log";
-bool autoSaveEnabled = true;
-unsigned long lastAutoSave = 0;
+// String configFile = "/config.json";  // MIGRADO → STATE.config.configFile
+// String sessionFile = "/session.json";  // MIGRADO → STATE.config.sessionFile
+// String statsFile = "/stats.json";  // MIGRADO → STATE.config.statsFile
+// String logFile = "/system.log";  // MIGRADO → STATE.config.logFile
+// bool autoSaveEnabled = true;  // MIGRADO → STATE.config.autoSaveEnabled
+// unsigned long lastAutoSave = 0;  // MIGRADO → STATE.config.lastAutoSave
 const unsigned long AUTO_SAVE_INTERVAL = 60000; // 1 minute
 
 // Theme system
@@ -287,43 +415,43 @@ ThemeColors themeColors = {
 };
 
 // WPS Attack
-bool isWPSAttacking = false;
-unsigned long wpsStartTime = 0;
-int wpsPinsTried = 0;
-int wpsVulnerableAPs = 0;
-String wpsTargetSSID = "";
-uint8_t wpsTargetBSSID[6];
-unsigned long wpsLastAttempt = 0;
+// bool isWPSAttacking = false;  // MIGRADO → STATE.wps.isWPSAttacking
+// unsigned long wpsStartTime = 0;  // MIGRADO → STATE.wps.wpsStartTime
+// int wpsPinsTried = 0;  // MIGRADO → STATE.wps.wpsPinsTried
+// int wpsVulnerableAPs = 0;  // MIGRADO → STATE.wps.wpsVulnerableAPs
+// String wpsTargetSSID = "";  // MIGRADO → STATE.wps.wpsTargetSSID
+uint8_t wpsTargetBSSID[6];  // Mantém array local (pode ser migrado depois)
+// unsigned long wpsLastAttempt = 0;  // MIGRADO → STATE.wps.wpsLastAttempt
 
 // IR Universal Remote
 IRsend* irSender = nullptr;
 IRrecv* irReceiver = nullptr;
-bool irAvailable = false;
-IRCode irCodes[MAX_IR_CODES];
-int irCodeCount = 0;
-int selectedIRCode = 0;
-bool isLearningIR = false;
-uint64_t learnedIRCode = 0;
-String irMode = "TV"; // TV, AC, DVD, etc
+// bool irAvailable = false;  // MIGRADO → STATE.ir.irAvailable
+IRCode irCodes[MAX_IR_CODES];  // Mantém array local
+// int irCodeCount = 0;  // MIGRADO → STATE.ir.irCodeCount
+// int selectedIRCode = 0;  // MIGRADO → STATE.ir.selectedIRCode
+// bool isLearningIR = false;  // MIGRADO → STATE.ir.isLearningIR
+uint64_t learnedIRCode = 0;  // Mantém (variável temporária)
+// String irMode = "TV";  // MIGRADO → STATE.ir.irMode
 
 // RF 433MHz
 RCSwitch* rfTransmitter = nullptr;
 RCSwitch* rfReceiver = nullptr;
-bool rf433Available = false;
-RFCode rfCodes[MAX_RF_CODES];
-int rfCodeCount = 0;
-int selectedRFCode = 0;
-bool isCapturingRF = false;
-bool isReplayingRF = false;
+// bool rf433Available = false;  // MIGRADO → STATE.rf.rf433Available
+RFCode rfCodes[MAX_RF_CODES];  // Mantém array local
+// int rfCodeCount = 0;  // MIGRADO → STATE.rf.rfCodeCount
+// int selectedRFCode = 0;  // MIGRADO → STATE.rf.selectedRFCode
+// bool isCapturingRF = false;  // MIGRADO → STATE.rf.isCapturingRF
+// bool isReplayingRF = false;  // MIGRADO → STATE.rf.isReplayingRF
 
 // LoRa Scanner
-bool loraAvailable = false;
-LoRaDevice loraDevices[MAX_LORA_DEVICES];
-int loraDeviceCount = 0;
-int selectedLoRaDevice = 0;
-bool isScanningLoRa = false;
-unsigned long lastLoRaScan = 0;
-int loraPacketsReceived = 0;
+// bool loraAvailable = false;  // MIGRADO → STATE.lora.loraAvailable
+LoRaDevice loraDevices[MAX_LORA_DEVICES];  // Mantém array local
+// int loraDeviceCount = 0;  // MIGRADO → STATE.lora.loraDeviceCount
+// int selectedLoRaDevice = 0;  // MIGRADO → STATE.lora.selectedLoRaDevice
+// bool isScanningLoRa = false;  // MIGRADO → STATE.lora.isScanningLoRa
+// unsigned long lastLoRaScan = 0;  // MIGRADO → STATE.lora.lastLoRaScan
+// int loraPacketsReceived = 0;  // MIGRADO → STATE.lora.loraPacketsReceived
 
 // ==================== FORWARD DECLARATIONS ====================
 void drawMenu();
