@@ -2024,8 +2024,9 @@ void startChannelAnalyzer() {
     drawChannelAnalyzer();
 }
 
+// REFATORADO: Usa DisplayHelper para texto, mantém gráficos nativos
 void drawChannelAnalyzer() {
-    M5.Display.clear(themeColors.bg);
+    DisplayHelper::clear(themeColors.bg);
     drawHeader("Channel Analyzer");
     
     // Scan rápido para popular dados
@@ -2152,31 +2153,25 @@ void drawChannelAnalyzer() {
     }
     
     // Info with congestion heatmap legend
-    M5.Display.setTextColor(themeColors.fg, themeColors.bg);
-    M5.Display.setTextSize(1);
-    M5.Display.setCursor(4, 20);
-    M5.Display.printf("Total Networks: %d", maxNetworks);
-    
-    M5.Display.setCursor(4, 30);
-    M5.Display.setTextColor(themeColors.success, themeColors.bg);
-    M5.Display.printf("Best Channel: %d", bestChannel);
-    M5.Display.setTextColor(themeColors.primary, themeColors.bg);
-    M5.Display.printf(" (%d networks)", channelCount[bestChannel - 1]);
-    
+    char totalInfo[40];
+    snprintf(totalInfo, sizeof(totalInfo), "Total Networks: %d", maxNetworks);
+    DisplayHelper::drawText(totalInfo, 4, 20, themeColors.fg);
+
+    char bestChannelInfo[30];
+    snprintf(bestChannelInfo, sizeof(bestChannelInfo), "Best Channel: %d", bestChannel);
+    DisplayHelper::drawText(bestChannelInfo, 4, 30, themeColors.success);
+
+    char channelCountInfo[30];
+    snprintf(channelCountInfo, sizeof(channelCountInfo), " (%d networks)", channelCount[bestChannel - 1]);
+    DisplayHelper::drawText(channelCountInfo, 110, 30, themeColors.primary);
+
     // Congestion legend
-    M5.Display.setCursor(4, 42);
-    M5.Display.setTextColor(themeColors.primary, themeColors.bg);
-    M5.Display.print("Clear ");
-    M5.Display.setTextColor(themeColors.secondary, themeColors.bg);
-    M5.Display.print("Light ");
-    M5.Display.setTextColor(themeColors.warning, themeColors.bg);
-    M5.Display.print("Mod ");
-    M5.Display.setTextColor(themeColors.error, themeColors.bg);
-    M5.Display.print("Heavy");
-    
-    M5.Display.setTextColor(themeColors.secondary, themeColors.bg);
-    M5.Display.setCursor(4, SCREEN_HEIGHT - 12);
-    M5.Display.println("[SPACE]Rescan [ESC]Back");
+    DisplayHelper::drawText("Clear ", 4, 42, themeColors.primary);
+    DisplayHelper::drawText("Light ", 34, 42, themeColors.secondary);
+    DisplayHelper::drawText("Mod ", 64, 42, themeColors.warning);
+    DisplayHelper::drawText("Heavy", 88, 42, themeColors.error);
+
+    DisplayHelper::drawText("[SPACE]Rescan [ESC]Back", 4, SCREEN_HEIGHT - 12, themeColors.secondary);
 }
 
 void updateChannelAnalyzer() {
@@ -2829,24 +2824,30 @@ void startWPSAttack() {
     Serial.println("🔓 WPS Attack Mode");
 }
 
+// REFATORADO: Usa DisplayHelper para texto
 void drawWPSAttack() {
-    M5.Display.clear(themeColors.bg);
+    DisplayHelper::clear(themeColors.bg);
     drawHeader("WPS Pixie Dust Attack");
-    
-    M5.Display.setTextColor(themeColors.secondary, themeColors.bg);
-    M5.Display.setCursor(4, 20);
-    M5.Display.printf("Vulnerable APs: %d\n", wpsVulnerableAPs);
-    
-    M5.Display.setTextColor(themeColors.fg, themeColors.bg);
-    
+
+    char vulnInfo[40];
+    snprintf(vulnInfo, sizeof(vulnInfo), "Vulnerable APs: %d", wpsVulnerableAPs);
+    DisplayHelper::drawText(vulnInfo, 4, 20, themeColors.secondary);
+
     if (wpsTargetSSID.length() > 0) {
-        M5.Display.printf("\nTarget: %s\n", wpsTargetSSID.c_str());
-        M5.Display.printf("BSSID: %02X:%02X:%02X:%02X:%02X:%02X\n",
+        char targetInfo[50];
+        snprintf(targetInfo, sizeof(targetInfo), "Target: %s", wpsTargetSSID.c_str());
+        DisplayHelper::drawText(targetInfo, 4, 35, themeColors.fg);
+
+        char bssidInfo[50];
+        snprintf(bssidInfo, sizeof(bssidInfo), "BSSID: %02X:%02X:%02X:%02X:%02X:%02X",
             wpsTargetBSSID[0], wpsTargetBSSID[1], wpsTargetBSSID[2],
             wpsTargetBSSID[3], wpsTargetBSSID[4], wpsTargetBSSID[5]);
+        DisplayHelper::drawText(bssidInfo, 4, 45, themeColors.fg);
     }
-    
-    M5.Display.printf("\nPINs Tried: %d / 11000\n", wpsPinsTried);
+
+    char pinsInfo[40];
+    snprintf(pinsInfo, sizeof(pinsInfo), "PINs Tried: %d / 11000", wpsPinsTried);
+    DisplayHelper::drawText(pinsInfo, 4, 60, themeColors.fg);
     
     // Brute force progress bar
     if (isWPSAttacking) {
@@ -2872,9 +2873,9 @@ void drawWPSAttack() {
         }
     }
     
-    M5.Display.setTextColor(isWPSAttacking ? TFT_GREEN : TFT_RED, TFT_BLACK);
-    M5.Display.setCursor(4, 95);
-    M5.Display.printf("Status: %s\n", isWPSAttacking ? "ATTACKING" : "STOPPED");
+    char statusInfo[30];
+    snprintf(statusInfo, sizeof(statusInfo), "Status: %s", isWPSAttacking ? "ATTACKING" : "STOPPED");
+    DisplayHelper::drawText(statusInfo, 4, 95, isWPSAttacking ? TFT_GREEN : TFT_RED);
     
     // Lista de redes (compacta)
     if (!isWPSAttacking && networkCount > 0) {
@@ -2956,14 +2957,18 @@ void startIRRemote() {
     Serial.println("🔴 IR Remote Started");
 }
 
+// REFATORADO: Usa DisplayHelper para texto
 void drawIRRemote() {
-    M5.Display.clear(themeColors.bg);
+    DisplayHelper::clear(themeColors.bg);
     drawHeader("IR Universal Remote");
-    
-    M5.Display.setTextColor(themeColors.primary, themeColors.bg);
-    M5.Display.setCursor(4, 20);
-    M5.Display.printf("Mode: %s\n", irMode.c_str());
-    M5.Display.printf("Status: %s\n\n", isLearningIR ? "LEARNING" : "READY");
+
+    char modeInfo[40];
+    snprintf(modeInfo, sizeof(modeInfo), "Mode: %s", irMode.c_str());
+    DisplayHelper::drawText(modeInfo, 4, 20, themeColors.primary);
+
+    char statusInfo[40];
+    snprintf(statusInfo, sizeof(statusInfo), "Status: %s", isLearningIR ? "LEARNING" : "READY");
+    DisplayHelper::drawText(statusInfo, 4, 30, themeColors.primary);
     
     // ===== ANIMATION: IR LED Pulse & Transmission Wave =====
     static unsigned long lastPulse = 0;
@@ -3095,14 +3100,18 @@ void startRF433() {
     Serial.println("📡 RF 433MHz Started");
 }
 
+// REFATORADO: Usa DisplayHelper para texto, mantém animações nativas
 void drawRF433() {
-    M5.Display.clear(themeColors.bg);
+    DisplayHelper::clear(themeColors.bg);
     drawHeader("RF 433MHz");
-    
-    M5.Display.setTextColor(themeColors.primary, themeColors.bg);
-    M5.Display.setCursor(4, 20);
-    M5.Display.printf("Status: %s\n", isCapturingRF ? "CAPTURING" : "READY");
-    M5.Display.printf("Captured: %d codes\n\n", rfCodeCount);
+
+    char statusInfo[30];
+    snprintf(statusInfo, sizeof(statusInfo), "Status: %s", isCapturingRF ? "CAPTURING" : "READY");
+    DisplayHelper::drawText(statusInfo, 4, 20, themeColors.primary);
+
+    char capturedInfo[30];
+    snprintf(capturedInfo, sizeof(capturedInfo), "Captured: %d codes", rfCodeCount);
+    DisplayHelper::drawText(capturedInfo, 4, 30, themeColors.primary);
     
     // ===== ANIMATION: 433MHz Signal Waves & Transmission =====
     static unsigned long lastRFAnimation = 0;
@@ -3119,9 +3128,7 @@ void drawRF433() {
     
     // Frequency indicator - always show 433MHz wave
     int freqY = 40;
-    M5.Display.setTextColor(themeColors.primary, themeColors.bg);
-    M5.Display.setCursor(160, freqY - 8);
-    M5.Display.print("433MHz");
+    DisplayHelper::drawText("433MHz", 160, freqY - 8, themeColors.primary);
     
     // Draw sine wave visualization
     if (millis() - lastRFAnimation > 20) {
@@ -3179,24 +3186,28 @@ void drawRF433() {
     }
     
     // Lista de códigos
-    M5.Display.setTextColor(themeColors.fg, themeColors.bg);
-    M5.Display.setCursor(4, 68);
-    M5.Display.println("Codes:");
-    
+    DisplayHelper::drawText("Codes:", 4, 68, themeColors.fg);
+
     int maxDisplay = min(rfCodeCount, 4);
+    int listY = 78;
     for (int i = 0; i < maxDisplay; i++) {
-        M5.Display.setTextColor(i == selectedRFCode ? TFT_BLACK : TFT_WHITE,
-                                 i == selectedRFCode ? TFT_GREEN : TFT_BLACK);
-        M5.Display.printf(" %s (%lu)\n", rfCodes[i].name.c_str(), rfCodes[i].code);
+        bool isSelected = (i == selectedRFCode);
+        uint32_t textColor = isSelected ? TFT_BLACK : TFT_WHITE;
+        uint32_t bgColor = isSelected ? TFT_GREEN : themeColors.bg;
+
+        if (isSelected) {
+            M5.Display.fillRect(0, listY, SCREEN_WIDTH, 10, bgColor);
+        }
+
+        char codeInfo[50];
+        snprintf(codeInfo, sizeof(codeInfo), " %s (%lu)", rfCodes[i].name.c_str(), rfCodes[i].code);
+        DisplayHelper::drawText(codeInfo, 4, listY, textColor);
+        listY += 10;
     }
-    
-    M5.Display.setTextColor(themeColors.secondary, themeColors.bg);
-    M5.Display.setCursor(4, SCREEN_HEIGHT - 30);
-    M5.Display.println("[SPACE] Send [C] Capture");
-    M5.Display.setCursor(4, SCREEN_HEIGHT - 20);
-    M5.Display.println("[S] Save to SD");
-    M5.Display.setCursor(4, SCREEN_HEIGHT - 10);
-    M5.Display.println("[ESC] Back");
+
+    DisplayHelper::drawText("[SPACE] Send [C] Capture", 4, SCREEN_HEIGHT - 30, themeColors.secondary);
+    DisplayHelper::drawText("[S] Save to SD", 4, SCREEN_HEIGHT - 20, themeColors.secondary);
+    DisplayHelper::drawText("[ESC] Back", 4, SCREEN_HEIGHT - 10, themeColors.secondary);
 }
 
 void updateRF433() {
@@ -3250,19 +3261,27 @@ void startLoRaScanner() {
     Serial.println("🛰️ LoRa Scanner Started");
 }
 
+// REFATORADO: Usa DisplayHelper para texto, mantém animações nativas
 void drawLoRaScanner() {
-    M5.Display.clear(themeColors.bg);
+    DisplayHelper::clear(themeColors.bg);
     drawHeader("LoRa Scanner");
-    
-    M5.Display.setTextColor(themeColors.primary, themeColors.bg);
-    M5.Display.setCursor(4, 20);
-    M5.Display.printf("Freq: %.1f MHz\n", LORA_FREQUENCY / 1E6);
-    M5.Display.printf("Devices: %d\n", loraDeviceCount);
-    M5.Display.printf("Packets: %d\n\n", loraPacketsReceived);
-    
+
+    char freqInfo[30];
+    snprintf(freqInfo, sizeof(freqInfo), "Freq: %.1f MHz", LORA_FREQUENCY / 1E6);
+    DisplayHelper::drawText(freqInfo, 4, 20, themeColors.primary);
+
+    char devicesInfo[30];
+    snprintf(devicesInfo, sizeof(devicesInfo), "Devices: %d", loraDeviceCount);
+    DisplayHelper::drawText(devicesInfo, 4, 30, themeColors.primary);
+
+    char packetsInfo[30];
+    snprintf(packetsInfo, sizeof(packetsInfo), "Packets: %d", loraPacketsReceived);
+    DisplayHelper::drawText(packetsInfo, 4, 40, themeColors.primary);
+
     // Status com animação
-    M5.Display.setTextColor(loraAvailable ? TFT_GREEN : TFT_RED, TFT_BLACK);
-    M5.Display.printf("Status: %s", loraAvailable ? "ACTIVE" : "NO HARDWARE");
+    char statusInfo[40];
+    snprintf(statusInfo, sizeof(statusInfo), "Status: %s", loraAvailable ? "ACTIVE" : "NO HARDWARE");
+    DisplayHelper::drawText(statusInfo, 4, 50, loraAvailable ? TFT_GREEN : TFT_RED);
     
     // Packet rain animation (packets falling from sky)
     if (isScanningLoRa && loraAvailable) {
@@ -3285,40 +3304,44 @@ void drawLoRaScanner() {
         }
     }
     
-    M5.Display.println();
-    
     if (loraAvailable && loraDeviceCount > 0) {
-        M5.Display.setTextColor(themeColors.fg, themeColors.bg);
-        M5.Display.println("Devices:");
-        
+        DisplayHelper::drawText("Devices:", 4, 68, themeColors.fg);
+
         int maxDisplay = min(loraDeviceCount, 4);
+        int listY = 78;
         for (int i = 0; i < maxDisplay; i++) {
-            M5.Display.setTextColor(i == selectedLoRaDevice ? TFT_BLACK : TFT_WHITE,
-                                     i == selectedLoRaDevice ? TFT_GREEN : TFT_BLACK);
-            M5.Display.printf(" %s", loraDevices[i].name.c_str());
-            
+            bool isSelected = (i == selectedLoRaDevice);
+            uint32_t textColor = isSelected ? TFT_BLACK : TFT_WHITE;
+            uint32_t bgColor = isSelected ? TFT_GREEN : themeColors.bg;
+
+            if (isSelected) {
+                M5.Display.fillRect(0, listY, SCREEN_WIDTH, 10, bgColor);
+            }
+
             // RSSI signal bars
             int rssi = loraDevices[i].rssi;
             int bars = map(constrain(rssi, -120, -30), -120, -30, 1, 5);
-            M5.Display.setTextColor(TFT_GREEN, i == selectedLoRaDevice ? TFT_GREEN : TFT_BLACK);
-            M5.Display.print(" ");
+
+            char signalBars[10] = "";
             for (int b = 0; b < 5; b++) {
-                M5.Display.print(b < bars ? "▰" : "▱");
+                strcat(signalBars, (b < bars ? "▰" : "▱"));
             }
-            M5.Display.println();
-            
+
+            char deviceInfo[60];
+            snprintf(deviceInfo, sizeof(deviceInfo), " %s %s", loraDevices[i].name.c_str(), signalBars);
+            DisplayHelper::drawText(deviceInfo, 4, listY, textColor);
+
             // Ping indicator for recently seen devices
             if (millis() - loraDevices[i].lastSeen < 1000) {
-                M5.Display.fillCircle(220, M5.Display.getCursorY() - 6, 2, TFT_CYAN);
+                M5.Display.fillCircle(220, listY + 4, 2, TFT_CYAN);
             }
+
+            listY += 10;
         }
     }
-    
-    M5.Display.setTextColor(themeColors.secondary, themeColors.bg);
-    M5.Display.setCursor(4, SCREEN_HEIGHT - 20);
-    M5.Display.println("[SPACE] Toggle Scan");
-    M5.Display.setCursor(4, SCREEN_HEIGHT - 10);
-    M5.Display.println("[ESC] Back");
+
+    DisplayHelper::drawText("[SPACE] Toggle Scan", 4, SCREEN_HEIGHT - 20, themeColors.secondary);
+    DisplayHelper::drawText("[ESC] Back", 4, SCREEN_HEIGHT - 10, themeColors.secondary);
 }
 
 void updateLoRaScanner() {
@@ -3439,15 +3462,13 @@ void startBluetooth() {
     Serial.println("🔵 Bluetooth Attacks Module Started");
 }
 
+// REFATORADO: Usa DisplayHelper para menu limpo
 void drawBluetooth() {
     if (bleModule == nullptr) return;
-    
-    M5.Display.clear(themeColors.bg);
+
+    DisplayHelper::clear(themeColors.bg);
     drawHeader("Bluetooth Attacks");
-    
-    M5.Display.setTextColor(themeColors.fg, themeColors.bg);
-    M5.Display.setCursor(4, 24);
-    
+
     const char* attacks[] = {
         "1. Sour Apple (iOS)",
         "2. Samsung Spam",
@@ -3456,24 +3477,22 @@ void drawBluetooth() {
         "5. Spam All",
         "0. Stop & Back"
     };
-    
+
     for (int i = 0; i < 6; i++) {
-        M5.Display.setCursor(4, 30 + i * 12);
-        M5.Display.println(attacks[i]);
+        DisplayHelper::drawText(attacks[i], 4, 30 + i * 12, themeColors.fg);
     }
-    
+
     // Status info
-    M5.Display.setTextColor(themeColors.primary, themeColors.bg);
-    M5.Display.setCursor(4, 100);
     if (bleModule->isRunning()) {
-        M5.Display.printf("Status: ATTACKING");
-        M5.Display.setCursor(4, 112);
-        M5.Display.setTextColor(themeColors.success, themeColors.bg);
-        M5.Display.printf("Packets: %lu", bleModule->getPacketsSent());
+        DisplayHelper::drawText("Status: ATTACKING", 4, 100, themeColors.primary);
+
+        char packetsInfo[40];
+        snprintf(packetsInfo, sizeof(packetsInfo), "Packets: %lu", bleModule->getPacketsSent());
+        DisplayHelper::drawText(packetsInfo, 4, 112, themeColors.success);
     } else {
-        M5.Display.print("Status: Ready");
+        DisplayHelper::drawText("Status: Ready", 4, 100, themeColors.primary);
     }
-    
+
     drawStatusBar();
 }
 
