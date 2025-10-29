@@ -19,16 +19,16 @@
 
 // ==================== DEFINIÇÕES DE PINOS SPI ====================
 #ifndef SCK
-    #define SCK  36
+    #define SCK  40
 #endif
 #ifndef MISO
-    #define MISO 35
+    #define MISO 39
 #endif
 #ifndef MOSI
-    #define MOSI 37
+    #define MOSI 14
 #endif
 #ifndef SS
-    #define SS   34
+    #define SS   12
 #endif
 
 #include <M5Unified.h>

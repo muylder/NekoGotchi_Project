@@ -46,6 +46,7 @@ public:
 #include "m5gotchi_tutorial_system.h"
 #include "m5gotchi_neko_virtual_pet.h"
 #include "m5gotchi_neko_sounds.h"
+#include "stage5_dashboard.h"
 
 namespace stage4 {
 constexpr uint16_t kBgColor = TFT_BLACK;
@@ -175,6 +176,19 @@ constexpr FrameSet kSettingsFrames[] = {
      " TWEAKS "}
 };
 
+constexpr FrameSet kDashboardFrames[] = {
+    {"  /\_/\  ",
+     " ( ^ω^ ) ",
+     "  /|_|\  ",
+     "  /   \  ",
+     " DASH  "},
+    {"  /\_/\  ",
+     " ( >w< ) ",
+     "  /|_|\  ",
+     "  /   \  ",
+     " STAGE5"}
+};
+
 constexpr FrameSet kBluetoothFrames[] = {
     {"  /\\_/\\  ",
      " ( ^.^ ) ",
@@ -236,6 +250,7 @@ enum class ModeType {
     kSettings,
     kBluetooth,
     kAchievements,
+    kDashboard,
     kTutorial,
     kVirtualPet
 };
@@ -316,6 +331,14 @@ constexpr ModeInfo kModes[] = {
     0xFCA0,
      ModeType::kAchievements,
      false},
+    {"Dashboard",
+     "Painel central com missoes e pet",
+     "W/S missoes, A/D macros, SPACE executa.",
+     kDashboardFrames,
+     static_cast<int>(sizeof(kDashboardFrames) / sizeof(FrameSet)),
+     TFT_MAGENTA,
+     ModeType::kDashboard,
+     true},
     {"Tutorial Wizard",
      "Onboarding interativo",
      "ENTER abre wizard, N avança, B volta.",
@@ -357,7 +380,13 @@ struct KeyFlags {
     bool prev = false;
     bool skip = false;
     bool help = false;
+    bool enter = false;
 };
+
+constexpr uint8_t kHidRightArrow = 0x4F;
+constexpr uint8_t kHidLeftArrow  = 0x50;
+constexpr uint8_t kHidDownArrow  = 0x51;
+constexpr uint8_t kHidUpArrow    = 0x52;
 
 int gSelectedIndex = 0;
 int gActiveMode = 0;
@@ -469,6 +498,7 @@ void toggleBluetooth();
 void changeBluetoothAttack(int delta);
 void triggerAchievementEvent(AchievementEvent ev, uint16_t value = 1);
 const char *bleAttackName(BLEAttackType type);
+int wifiStrengthPercent();
 
 void drawPanel(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t accent, const char *title) {
     M5.Display.fillRoundRect(x, y, w, h, 6, kCardBg);
@@ -556,6 +586,13 @@ void drawStatusCard() {
     M5.Display.setTextColor(kMutedColor, kCardBg);
     M5.Display.print(timeLine);
     M5.Display.setTextColor(kCardText, kCardBg);
+
+    stage5::syncWifiStrength(wifiStrengthPercent());
+    if (gNekoReady) {
+        stage5::syncPetStats(gNekoPet.getEnergy(),
+                             gNekoPet.getHappiness(),
+                             static_cast<int>(gNekoPet.getCurrentMood()));
+    }
 }
 
 void drawNekoFrame(bool forceClear) {
@@ -720,6 +757,9 @@ void ensureMenuScroll() {
 
 void drawMenuOverlay() {
     gMenuVisible = true;
+    if (activeMode().type == ModeType::kDashboard) {
+        stage5::setMenuOverlay(true);
+    }
     if (!modeUsesFullScreen()) {
         drawLayout();
     }
@@ -770,6 +810,9 @@ void drawMenuOverlay() {
 
 void hideMenuOverlay() {
     gMenuVisible = false;
+    if (activeMode().type == ModeType::kDashboard) {
+        stage5::setMenuOverlay(false);
+    }
     renderActiveMode(true);
 }
 
@@ -845,6 +888,17 @@ void initPeripherals() {
     gNekoPet.setSoundSystem(&gNekoSounds);
     gNekoPet.init();
     gNekoReady = true;
+
+    stage5::init();
+    if (gNekoReady) {
+        stage5::syncPetStats(gNekoPet.getEnergy(),
+                             gNekoPet.getHappiness(),
+                             static_cast<int>(gNekoPet.getCurrentMood()));
+        stage5::setMissionStatus(0, "Monitorando handshakes");
+        stage5::setMissionStatus(1, "Portal aguardando");
+        stage5::setMissionStatus(2, "Deauth/BLE standby");
+    }
+    stage5::syncWifiStrength(wifiStrengthPercent());
 }
 
 void renderActiveMode(bool initial) {
@@ -864,6 +918,7 @@ void applyMode(int index) {
     if (index < 0 || index >= kModeCount) {
         return;
     }
+    ModeType previousType = activeMode().type;
     gActiveMode = index;
     gSelectedIndex = index;
     gModeStartedAt = millis();
@@ -875,6 +930,8 @@ void applyMode(int index) {
         gHandshakeProgress = 0;
         gHandshakeCompleted = false;
         gHandshakeTick = millis();
+        stage5::setMissionProgress(0, 0);
+        stage5::setMissionStatus(0, "Monitorando handshakes");
     }
 
     if (activeMode().type == ModeType::kFileManager && gSdOk) {
@@ -883,6 +940,10 @@ void applyMode(int index) {
 
     if (activeMode().type == ModeType::kTutorial && gTutorialReady && !gTutorial.isTutorialActive()) {
         gTutorial.startWizard();
+    }
+
+    if (previousType == ModeType::kDashboard && activeMode().type != ModeType::kDashboard) {
+        stage5::exit();
     }
 
     renderActiveMode(true);
@@ -909,6 +970,10 @@ void updateHandshakeSimulation(uint32_t now) {
         if (gHandshakeProgress > 100) {
             gHandshakeProgress = 100;
         }
+        stage5::setMissionProgress(0, gHandshakeProgress);
+        if (gHandshakeProgress < 100) {
+            stage5::setMissionStatus(0, String("Capturando handshakes: ") + gHandshakeProgress + "%");
+        }
         if (!modeUsesFullScreen() && !gMenuVisible) {
             drawModeCard();
         }
@@ -919,6 +984,8 @@ void updateHandshakeSimulation(uint32_t now) {
             if (gNekoReady) {
                 gNekoPet.notifyHackSuccess("Handshake");
             }
+            stage5::setMissionStatus(0, "Handshake concluido");
+            stage5::logEvent("Handshake concluido", TFT_GREEN);
         }
     }
 }
@@ -952,6 +1019,9 @@ void updatePortalSimulation(uint32_t now) {
     if (!modeUsesFullScreen() && activeMode().type == ModeType::kEvilPortal) {
         drawModeCard();
     }
+    stage5::setMissionStatus(1, String("Clientes fake: ") + gPortalClients);
+    const uint8_t progress = static_cast<uint8_t>(std::min<int>(100, static_cast<int>(gPortalClients) * 12));
+    stage5::setMissionProgress(1, progress);
 }
 
 void updateChannelAnalyzer(uint32_t now) {
@@ -1014,6 +1084,11 @@ void tickBluetooth(uint32_t now) {
             break;
     }
     gBlePackets++;
+    if (gBleActive) {
+        stage5::setMissionStatus(2, String("BLE ativo: ") + bleAttackName(gBleType) + " (" + gBlePackets + ")");
+        const uint8_t progress = static_cast<uint8_t>(std::min<uint32_t>(100u, gBlePackets / 4));
+        stage5::setMissionProgress(2, progress);
+    }
     if (!modeUsesFullScreen() && activeMode().type == ModeType::kBluetooth) {
         drawModeCard();
     }
@@ -1025,6 +1100,21 @@ void tickBluetooth(uint32_t now) {
 void drawFullScreenMode(bool initial) {
     const ModeType type = activeMode().type;
     if (!modeUsesFullScreen()) {
+        return;
+    }
+    if (type == ModeType::kDashboard) {
+        String petName = gNekoReady ? gNekoPet.getPetName() : String("Kiisu");
+        int petEnergy = gNekoReady ? gNekoPet.getEnergy() : 82;
+        int petHappiness = gNekoReady ? gNekoPet.getHappiness() : 88;
+        int moodIndex = gNekoReady ? static_cast<int>(gNekoPet.getCurrentMood()) : 3;
+    int wifiStrength = wifiStrengthPercent();
+        stage5::syncPetStats(petEnergy, petHappiness, moodIndex);
+        stage5::syncWifiStrength(wifiStrength);
+        if (initial) {
+            stage5::enter(petName, petEnergy, petHappiness, moodIndex, wifiStrength);
+        } else {
+            stage5::forceRender();
+        }
         return;
     }
     if (type == ModeType::kTutorial) {
@@ -1301,9 +1391,22 @@ void toggleDeauth() {
         gDeauthPackets = 0;
         gDeauthTick = millis();
         showMessage("Deauth simulada ativada.");
+        stage5::setMissionStatus(2, "Deauth simulada ativa");
+        stage5::adjustMissionProgress(2, 6);
+        stage5::logEvent("Deauth simulada ativada", 0xFBE0);
+        stage5::setMacroResult(1, "Deauth ativo");
     } else {
         showMessage("Flood pausado.");
+        const char *bleLabel = bleAttackName(gBleType);
+        if (gBleActive) {
+            stage5::setMissionStatus(2, String("BLE ativo: ") + bleLabel);
+        } else {
+            stage5::setMissionStatus(2, "Deauth/BLE standby");
+            stage5::setMissionProgress(2, 0);
+        }
+        stage5::setMacroResult(1, "Deauth standby");
     }
+    stage5::setMacroActive(1, gDeauthActive);
     drawModeCard();
 }
 
@@ -1314,9 +1417,17 @@ void togglePortal() {
         gPortalTick = millis();
         showMessage("Portal simulado iniciado.");
         triggerAchievementEvent(EVENT_PORTAL_CREATE, 1);
+        stage5::setMissionStatus(1, "Portal servindo template");
+        stage5::adjustMissionProgress(1, 8);
+        stage5::logEvent("Portal cativo iniciado", 0xFFE0);
+        stage5::setMacroResult(2, "Portal ativo");
     } else {
         showMessage("Portal desligado.");
+        stage5::setMissionStatus(1, "Portal aguardando");
+        stage5::setMissionProgress(1, 0);
+        stage5::setMacroResult(2, "Portal standby");
     }
+    stage5::setMacroActive(2, gPortalActive);
     drawModeCard();
 }
 
@@ -1331,6 +1442,13 @@ const char *bleAttackName(BLEAttackType type) {
     return "?";
 }
 
+int wifiStrengthPercent() {
+    if (!gWifiOk) {
+        return 0;
+    }
+    return std::min(100, gNetworksFound * 12);
+}
+
 void toggleBluetooth() {
     if (!gBleReady) {
         showMessage("BLE nao inicializado.");
@@ -1340,6 +1458,12 @@ void toggleBluetooth() {
         gBleAttacks.stop();
         gBleActive = false;
         showMessage("BLE spam parado.");
+        if (gDeauthActive) {
+            stage5::setMissionStatus(2, "Deauth simulada ativa");
+        } else {
+            stage5::setMissionStatus(2, "Deauth/BLE standby");
+        }
+        stage5::logEvent("BLE spam parado", 0x4EDD);
     } else {
         switch (gBleType) {
             case BLE_ATTACK_SOUR_APPLE: gBleAttacks.startSourApple(); break;
@@ -1352,6 +1476,9 @@ void toggleBluetooth() {
         gBlePackets = 0;
         showMessage("BLE spam ativo.");
         triggerAchievementEvent(EVENT_BLE_SPAM, 1);
+        stage5::setMissionStatus(2, String("BLE ativo: ") + bleAttackName(gBleType));
+        stage5::adjustMissionProgress(2, 8);
+        stage5::logEvent(String("BLE spam ativo ( ") + bleAttackName(gBleType) + " )", 0x4EDD);
     }
     drawModeCard();
 }
@@ -1363,6 +1490,8 @@ void changeBluetoothAttack(int delta) {
     if (gBleActive) {
         toggleBluetooth();
         toggleBluetooth();
+    } else {
+        stage5::setMissionStatus(2, String("BLE pronto: ") + bleAttackName(gBleType));
     }
     drawModeCard();
 }
@@ -1387,6 +1516,21 @@ void pumpAchievementNotifications() {
 
 void processModeShortcuts(const KeyFlags &flags) {
     const ModeType type = activeMode().type;
+    if (type == ModeType::kDashboard) {
+        stage5::Input input;
+        input.missionUp = flags.up;
+        input.missionDown = flags.down;
+        input.macroLeft = flags.cycleLeft;
+        input.macroRight = flags.cycleRight;
+        input.toggleMacro = flags.space;
+        input.feedPet = flags.feed;
+        input.petPet = flags.pet;
+        input.enter = flags.enter;
+        input.nextPage = flags.next;
+        input.prevPage = flags.prev;
+        stage5::handleInput(input);
+        return;
+    }
     if (flags.space) {
         switch (type) {
             case ModeType::kClone: toggleDeauth(); break;
@@ -1427,10 +1571,16 @@ void processModeShortcuts(const KeyFlags &flags) {
         if (flags.feed) {
             gNekoPet.quickFeed();
             showMessage("Neko alimentado (snack)");
+            stage5::syncPetStats(gNekoPet.getEnergy(),
+                                  gNekoPet.getHappiness(),
+                                  static_cast<int>(gNekoPet.getCurrentMood()));
         }
         if (flags.pet) {
             gNekoPet.quickPet();
             showMessage("Neko feliz (carinho)");
+            stage5::syncPetStats(gNekoPet.getEnergy(),
+                                  gNekoPet.getHappiness(),
+                                  static_cast<int>(gNekoPet.getCurrentMood()));
         }
     }
 
@@ -1468,7 +1618,7 @@ void setup() {
 
     initPeripherals();
     applyMode(0);
-    showMessage("ESC abre o menu principal. SPACE executa acao.");
+    showMessage("ESC abre menu | ENTER troca abas | setas navegam.");
 
     gLastNekoTick = millis();
     gLastStatusTick = millis();
@@ -1481,17 +1631,22 @@ void loop() {
     if (M5Cardputer.Keyboard.isChange() && M5Cardputer.Keyboard.isPressed()) {
         auto status = M5Cardputer.Keyboard.keysState();
         KeyFlags flags;
+        const bool dashboardActive = activeMode().type == ModeType::kDashboard;
         for (auto key : status.word) {
             switch (key) {
                 case ';':
                 case 'w':
                 case 'W':
-                    flags.up = true;
+                    if (!dashboardActive) {
+                        flags.up = true;
+                    }
                     break;
                 case '.':
                 case 's':
                 case 'S':
-                    flags.down = true;
+                    if (!dashboardActive) {
+                        flags.down = true;
+                    }
                     break;
                 case '`':
                 case 0x1B:
@@ -1508,11 +1663,19 @@ void loop() {
                     break;
                 case '[':
                 case '{':
-                    flags.cycleLeft = true;
+                case 'a':
+                case 'A':
+                    if (!dashboardActive) {
+                        flags.cycleLeft = true;
+                    }
                     break;
                 case ']':
                 case '}':
-                    flags.cycleRight = true;
+                case 'd':
+                case 'D':
+                    if (!dashboardActive) {
+                        flags.cycleRight = true;
+                    }
                     break;
                 case 'o':
                 case 'O':
@@ -1520,12 +1683,16 @@ void loop() {
                     break;
                 case 'b':
                 case 'B':
-                    flags.back = true;
-                    flags.prev = true;
+                    if (!dashboardActive) {
+                        flags.back = true;
+                        flags.prev = true;
+                    }
                     break;
                 case 'n':
                 case 'N':
-                    flags.next = true;
+                    if (!dashboardActive) {
+                        flags.next = true;
+                    }
                     break;
                 case 'h':
                 case 'H':
@@ -1541,6 +1708,37 @@ void loop() {
             }
         }
 
+        if (status.tab && !dashboardActive) {
+            if (status.shift) {
+                flags.prev = true;
+            } else {
+                flags.next = true;
+            }
+        }
+
+        for (auto hid : status.hid_keys) {
+            switch (hid) {
+                case 0x4F:  // HID right arrow
+                    flags.cycleRight = true;
+                    flags.next = true;
+                    break;
+                case 0x50:  // HID left arrow
+                    flags.cycleLeft = true;
+                    flags.prev = true;
+                    break;
+                case 0x52:  // HID up arrow
+                    flags.up = true;
+                    break;
+                case 0x51:  // HID down arrow
+                    flags.down = true;
+                    break;
+                default:
+                    break;
+            }
+        }
+
+        flags.enter = status.enter;
+
         if (flags.esc) {
             handleEsc();
         }
@@ -1550,7 +1748,7 @@ void loop() {
         if (flags.down) {
             advanceSelection(1);
         }
-        if (status.enter) {
+        if (status.enter && !(activeMode().type == ModeType::kDashboard && !gMenuVisible)) {
             handleEnter();
         }
         processModeShortcuts(flags);
@@ -1575,6 +1773,10 @@ void loop() {
     updatePortalSimulation(now);
     updateChannelAnalyzer(now);
     tickBluetooth(now);
+
+    if (activeMode().type == ModeType::kDashboard) {
+        stage5::tick(now);
+    }
 
     if (gNekoReady) {
         gNekoPet.update();

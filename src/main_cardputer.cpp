@@ -28,6 +28,7 @@
 #include "m5gotchi_neko_virtual_pet.h"
 #include "m5gotchi_tutorial_system.h"
 #include "m5gotchi_achievement_manager.h"
+#include "stage5_dashboard.h"
 
 // ==================== CONFIGURAÇÕES ====================
 #define SCREEN_WIDTH 240
@@ -35,10 +36,10 @@
 #define MAX_NETWORKS 20
 
 // SD Card
-#define SD_SCK  36
-#define SD_MISO 35
-#define SD_MOSI 37
-#define SD_CS   34
+#define SD_SCK  40
+#define SD_MISO 39
+#define SD_MOSI 14
+#define SD_CS   12
 
 // Evil Portal
 #define DNS_PORT 53
@@ -84,6 +85,7 @@
 // Modos
 enum OperationMode {
     MODE_MENU,
+    MODE_DASHBOARD,
     MODE_WIFI_SCAN,
     MODE_DEAUTH,
     MODE_BEACON_SPAM,
@@ -153,7 +155,7 @@ struct LoRaDevice {
 };
 
 // ==================== VARIÁVEIS GLOBAIS ====================
-OperationMode currentMode = MODE_MENU;
+OperationMode currentMode = MODE_DASHBOARD;
 NetworkInfo networks[MAX_NETWORKS];
 int networkCount = 0;
 int selectedNetwork = 0;
@@ -4339,10 +4341,15 @@ void setup() {
     Serial.println("[12/12] Drawing menu...");
     M5.Display.setCursor(50, 125);
     M5.Display.setTextColor(TFT_GREEN);
-    M5.Display.print("Ready!");
-    delay(500);
-    drawMenu();
-    Serial.println("        ✓ Menu OK");
+    M5.Display.print("Dashboard pronto");
+    delay(300);
+
+    stage5::init();
+    stage5::enter("Kiisu", 88, 90, 4, 80);
+    stage5::logEvent("Sistema iniciado", 0x5FFF);
+    stage5::forceRender();
+    currentMode = MODE_DASHBOARD;
+    Serial.println("        ✓ Dashboard OK");
     
     Serial.println("\n========================================");
     Serial.println("✅ M5Gotchi PRO Ready!");
@@ -4359,6 +4366,83 @@ void loop() {
     // Auto-save system
     autoSaveAll();
     
+    if (currentMode == MODE_DASHBOARD) {
+        stage5::Input input;
+        bool hasInput = false;
+
+        if (M5Cardputer.Keyboard.isChange() && M5Cardputer.Keyboard.isPressed()) {
+            Keyboard_Class::KeysState status = M5Cardputer.Keyboard.keysState();
+            for (auto key : status.word) {
+                if (key == 0) {
+                    continue;
+                }
+                switch (key) {
+                    case ';':
+                    case 'w':
+                    case 'W':
+                        input.missionUp = true;
+                        hasInput = true;
+                        break;
+                    case '.':
+                    case 's':
+                    case 'S':
+                        input.missionDown = true;
+                        hasInput = true;
+                        break;
+                    case ',':
+                    case 'a':
+                    case 'A':
+                        input.macroLeft = true;
+                        hasInput = true;
+                        break;
+                    case '/':
+                    case 'd':
+                    case 'D':
+                        input.macroRight = true;
+                        hasInput = true;
+                        break;
+                    case ' ':
+                        input.toggleMacro = true;
+                        hasInput = true;
+                        break;
+                    case 'f':
+                    case 'F':
+                        input.feedPet = true;
+                        hasInput = true;
+                        break;
+                    case 'p':
+                    case 'P':
+                        input.petPet = true;
+                        hasInput = true;
+                        break;
+                    case 'n':
+                    case 'N':
+                        input.nextPage = true;
+                        hasInput = true;
+                        break;
+                    case 'b':
+                    case 'B':
+                        input.prevPage = true;
+                        hasInput = true;
+                        break;
+                    case 0x0D:
+                        input.enter = true;
+                        hasInput = true;
+                        break;
+                    default:
+                        break;
+                }
+            }
+        }
+
+        if (hasInput) {
+            stage5::handleInput(input);
+        }
+
+        stage5::tick(millis());
+        return;
+    }
+
     // Update active attacks
     if (currentMode == MODE_DEAUTH) {
         updateDeauth();

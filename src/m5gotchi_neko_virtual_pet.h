@@ -1425,6 +1425,7 @@ public:
     PetMood getCurrentMood() { return currentMood; }
     String getPetName() { return appearance.name; }
     int getHappiness() { return stats.happiness; }
+    int getEnergy() { return stats.energy; }
     int getHackSkill() { return stats.hack_skill; }
     int getLoyalty() { return stats.loyalty; }
     int getAge() { return stats.age_days; }

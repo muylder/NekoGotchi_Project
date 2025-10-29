@@ -42,7 +42,7 @@ void setup() {
 
 
 
-    M5Cardputer.begin();    Serial.println();#include <SD.h>
+        Serial.println(F("Waiting..."));#define SD_MOSI 14
 
     Serial.println(F("[2/4] M5Cardputer.begin ✓"));
 
@@ -130,9 +130,9 @@ void loop() {    Serial.println(F("        ✓ Cardputer OK"));#include <TinyGPS
 
     M5.Display.setCursor(20, 70);// SD Card
 
-    M5.Display.setTextSize(1);#define SD_SCK  36
+    M5.Display.setTextSize(1);#define SD_SCK  40
 
-    M5.Display.println("Stage 1: Core Boot");#define SD_MISO 35
+    M5.Display.println("Stage 1: Core Boot");#define SD_MISO 39
 
     M5.Display.setCursor(20, 90);#define SD_MOSI 37
 

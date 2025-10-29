@@ -204,6 +204,12 @@ public:
      * @details Call repeatedly in loop for continuous attack.
      */
     void executeMicrosoftSpam();
+
+    /**
+     * @brief Execute next advertisement in rotate-all mode
+     * @details Cycles through all attack payloads when BLE_ATTACK_ALL is active.
+     */
+    void executeRotateAll();
     
 private:
     bool _isRunning;                ///< Attack active flag
@@ -211,6 +217,7 @@ private:
     BLEAttackType _currentAttack;   ///< Active attack type
     unsigned long _lastSendTime;    ///< Timestamp of last packet (millis)
     uint16_t _sendInterval;         ///< Delay between packets (ms)
+    uint8_t _rotateIndex;           ///< Round-robin index for rotate-all attacks
     
     NimBLEAdvertising* _pAdvertising; ///< NimBLE advertising interface
     

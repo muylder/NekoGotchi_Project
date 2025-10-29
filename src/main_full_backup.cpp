@@ -35,10 +35,10 @@
 #define MAX_NETWORKS 20
 
 // SD Card
-#define SD_SCK  36
-#define SD_MISO 35
-#define SD_MOSI 37
-#define SD_CS   34
+#define SD_SCK  40
+#define SD_MISO 39
+#define SD_MOSI 14
+#define SD_CS   12
 
 // Evil Portal
 #define DNS_PORT 53

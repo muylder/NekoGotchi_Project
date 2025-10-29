@@ -10,6 +10,7 @@ BluetoothAttacks::BluetoothAttacks() {
     _lastSendTime = 0;
     _sendInterval = 50; // 50ms between packets
     _pAdvertising = nullptr;
+    _rotateIndex = 0;
 }
 
 bool BluetoothAttacks::begin() {
@@ -78,6 +79,7 @@ void BluetoothAttacks::startSpamAll() {
     _currentAttack = BLE_ATTACK_ALL;
     _isRunning = true;
     _packetsSent = 0;
+    _rotateIndex = 0;
     Serial.println("[BLE] Starting ALL BLE Spam Attacks...");
 }
 
@@ -368,4 +370,27 @@ void BluetoothAttacks::executeMicrosoftSpam() {
     if (_packetsSent % 10 == 0) {
         Serial.println("[BLE] Microsoft packets sent: " + String(_packetsSent));
     }
+}
+
+void BluetoothAttacks::executeRotateAll() {
+    if (!_isRunning || !_pAdvertising) {
+        return;
+    }
+
+    switch (_rotateIndex) {
+        case 0:
+            executeSourApple();
+            break;
+        case 1:
+            executeSamsungSpam();
+            break;
+        case 2:
+            executeGoogleSpam();
+            break;
+        default:
+            executeMicrosoftSpam();
+            break;
+    }
+
+    _rotateIndex = (_rotateIndex + 1) % 4;
 }
