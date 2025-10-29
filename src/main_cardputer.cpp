@@ -1,6 +1,7 @@
 /*
  * M5Gotchi PRO - WiFi Pentest Edition
  * Build funcional com WiFi scanning e ataques básicos
+ * Refatorado para melhor organização e manutenibilidade
  */
 
 #include <M5Unified.h>
@@ -23,6 +24,8 @@
 #include <LoRa.h>
 #include <TinyGPSPlus.h>
 #include <HardwareSerial.h>
+
+// M5Gotchi modules
 #include "m5gotchi_rfid_nfc.h"
 #include "bluetooth_attacks.h"
 #include "m5gotchi_neko_virtual_pet.h"
@@ -30,86 +33,57 @@
 #include "m5gotchi_achievement_manager.h"
 #include "stage5_dashboard.h"
 
+// Refactored infrastructure modules
+#include "DisplayHelper.h"
+#include "ConfigManager.h"
+#include "StateManager.h"
+#include "MenuManager.h"
+
+// Use Config namespace for easier access
+using namespace Config;
+
 // ==================== CONFIGURAÇÕES ====================
-#define SCREEN_WIDTH 240
-#define SCREEN_HEIGHT 135
-#define MAX_NETWORKS 20
+// NOTA: Constantes movidas para ConfigManager.h (Config namespace)
+// Acesse via: Config::Display::WIDTH, Config::WiFi::MAX_NETWORKS, etc.
 
-// SD Card
-#define SD_SCK  40
-#define SD_MISO 39
-#define SD_MOSI 14
-#define SD_CS   12
+// Backward compatibility aliases (serão removidos gradualmente)
+#define SCREEN_WIDTH Config::Display::WIDTH
+#define SCREEN_HEIGHT Config::Display::HEIGHT
+#define MAX_NETWORKS Config::WiFi::MAX_NETWORKS
+#define SD_SCK Config::SDCard::SCK_PIN
+#define SD_MISO Config::SDCard::MISO_PIN
+#define SD_MOSI Config::SDCard::MOSI_PIN
+#define SD_CS Config::SDCard::CS_PIN
+#define DNS_PORT Config::WiFi::DNS_PORT
+#define HTTP_PORT Config::WiFi::HTTP_PORT
+#define MAX_CLIENTS Config::WiFi::MAX_CLIENTS
+#define EAPOL_FRAME Config::WiFi::EAPOL_FRAME
+#define SNAP_LEN Config::WiFi::SNAP_LEN
+#define HANDSHAKE_DIR Config::Paths::HANDSHAKE_DIR
+#define PORTAL_DIR Config::Paths::PORTAL_DIR
+#define CREDS_FILE Config::Paths::CREDS_FILE
+#define IR_TX_PIN Config::IR::TX_PIN
+#define IR_RX_PIN Config::IR::RX_PIN
+#define IR_FREQUENCY Config::IR::FREQUENCY
+#define MAX_IR_CODES Config::IR::MAX_CODES
+#define RF_TX_PIN Config::RF::TX_PIN
+#define RF_RX_PIN Config::RF::RX_PIN
+#define MAX_RF_CODES Config::RF::MAX_CODES
+#define LORA_SCK Config::LoRa::SCK_PIN
+#define LORA_MISO Config::LoRa::MISO_PIN
+#define LORA_MOSI Config::LoRa::MOSI_PIN
+#define LORA_CS Config::LoRa::CS_PIN
+#define LORA_RST Config::LoRa::RST_PIN
+#define LORA_IRQ Config::LoRa::IRQ_PIN
+#define LORA_FREQUENCY Config::LoRa::FREQUENCY
+#define MAX_LORA_DEVICES Config::LoRa::MAX_DEVICES
+#define GPS_RX_PIN Config::GPS::RX_PIN
+#define GPS_TX_PIN Config::GPS::TX_PIN
+#define GPS_BAUD Config::GPS::BAUD_RATE
+#define GPS_UPDATE_INTERVAL Config::GPS::UPDATE_INTERVAL_MS
 
-// Evil Portal
-#define DNS_PORT 53
-#define HTTP_PORT 80
-#define MAX_CLIENTS 4
-
-// Handshake Capture
-#define EAPOL_FRAME 0x888E
-#define SNAP_LEN 2324
-
-// File paths
-#define HANDSHAKE_DIR "/handshakes"
-#define PORTAL_DIR "/portals"
-#define CREDS_FILE "/credentials.txt"
-
-// IR Universal Remote
-#define IR_TX_PIN 9
-#define IR_RX_PIN 36
-#define IR_FREQUENCY 38000
-#define MAX_IR_CODES 50
-
-// RF 433MHz
-#define RF_TX_PIN 26
-#define RF_RX_PIN 36
-#define MAX_RF_CODES 50
-
-// LoRa Module
-#define LORA_SCK 18
-#define LORA_MISO 19
-#define LORA_MOSI 23
-#define LORA_CS 5
-#define LORA_RST 14
-#define LORA_IRQ 2
-#define LORA_FREQUENCY 915E6  // 915 MHz (US) - mudar para 868E6 (EU) ou 433E6
-#define MAX_LORA_DEVICES 30
-
-// GPS Module (NEO-6M/NEO-8M)
-#define GPS_RX_PIN 1   // Cardputer TX (para conectar ao TX do GPS)
-#define GPS_TX_PIN 2   // Cardputer RX (para conectar ao RX do GPS)
-#define GPS_BAUD 9600
-#define GPS_UPDATE_INTERVAL 1000  // ms
-
-// Modos
-enum OperationMode {
-    MODE_MENU,
-    MODE_DASHBOARD,
-    MODE_WIFI_SCAN,
-    MODE_DEAUTH,
-    MODE_BEACON_SPAM,
-    MODE_PROBE_FLOOD,
-    MODE_EVIL_PORTAL,
-    MODE_HANDSHAKE,
-    MODE_CHANNEL_ANALYZER,
-    MODE_PACKET_MONITOR,
-    MODE_FILE_MANAGER,
-    MODE_GPS_WARDRIVING,
-    MODE_STATISTICS,
-    MODE_WPS_ATTACK,
-    MODE_IR_REMOTE,
-    MODE_RF433,
-    MODE_LORA_SCANNER,
-    MODE_RFID_NFC,
-    MODE_BLUETOOTH,
-    MODE_LOG_VIEWER,
-    MODE_NEKO_PET,
-    MODE_TUTORIAL,
-    MODE_ACHIEVEMENTS,
-    MODE_MONITOR,
-    MODE_INFO
-};
+// NOTA: OperationMode enum movido para StateManager.h
+// Mantendo aqui temporariamente para compatibilidade
 
 // ==================== ESTRUTURAS ====================
 struct NetworkInfo {
@@ -453,18 +427,15 @@ void writeLog(const char* message);
 void applyTheme(Theme theme);
 
 // ==================== FUNÇÕES AUXILIARES ====================
+// REFATORADO: Agora usa DisplayHelper
 void drawHeader(const char* title) {
-    M5.Display.fillRect(0, 0, SCREEN_WIDTH, 16, themeColors.header);
-    M5.Display.setTextColor(themeColors.fg);
-    M5.Display.setCursor(4, 4);
-    M5.Display.print(title);
+    DisplayHelper::drawHeader(title, themeColors);
 }
 
 void drawStatusBar() {
-    M5.Display.fillRect(0, SCREEN_HEIGHT - 12, SCREEN_WIDTH, 12, themeColors.header);
-    M5.Display.setTextColor(themeColors.warning);
-    M5.Display.setCursor(4, SCREEN_HEIGHT - 10);
-    M5.Display.printf("RAM:%dKB", ESP.getFreeHeap() / 1024);
+    char statusText[32];
+    snprintf(statusText, sizeof(statusText), "RAM:%dKB", ESP.getFreeHeap() / 1024);
+    DisplayHelper::drawFooter(statusText, themeColors);
 }
 
 // ==================== THEME SELECTOR ====================
@@ -558,16 +529,14 @@ void showThemeSelector() {
 }
 
 // ==================== MENU ====================
+// REFATORADO: Agora usa DisplayHelper para renderização mais limpa
 void drawMenu() {
-    M5.Display.clear(themeColors.bg);
+    DisplayHelper::clear(themeColors.bg);
     drawHeader("M5Gotchi WiFi Pentest");
-    
-    M5.Display.setTextColor(themeColors.fg, themeColors.bg);
-    M5.Display.setCursor(4, 24);
-    
+
     const char* menu[] = {
-        "1. WiFi Scan", 
-        "2. Deauth Attack", 
+        "1. WiFi Scan",
+        "2. Deauth Attack",
         "3. Beacon Spam",
         "4. Probe Flood",
         "5. Evil Portal",
@@ -589,37 +558,30 @@ void drawMenu() {
         "Q. Achievements",
         "0. System Info"
     };
-    
+
     // Scroll if needed (display max 12 items)
     int startIdx = max(0, min(menuSelection - 5, 22 - 12));
     int endIdx = min(22, startIdx + 12);
-    
+
+    // Render menu items using DisplayHelper
     for (int i = startIdx; i < endIdx; i++) {
-        M5.Display.setCursor(4, 20 + (i - startIdx) * 9);
-        if (i == menuSelection) {
-            M5.Display.setTextColor(themeColors.bg, themeColors.success);
-        } else {
-            M5.Display.setTextColor(themeColors.fg, themeColors.bg);
-        }
-        M5.Display.println(menu[i]);
+        bool isSelected = (i == menuSelection);
+        DisplayHelper::drawMenuItem(i - startIdx, menu[i], isSelected, themeColors);
     }
-    
-    // Theme hint
-    M5.Display.setTextColor(themeColors.primary, themeColors.bg);
-    M5.Display.setCursor(SCREEN_WIDTH - 70, SCREEN_HEIGHT - 12);
-    M5.Display.print("[T]Theme");
-    M5.Display.setCursor(4, SCREEN_HEIGHT - 12);
-    M5.Display.print("[?]Help");
-    
+
+    // Hints usando DisplayHelper
+    DisplayHelper::drawText("[T]Theme", SCREEN_WIDTH - 70, SCREEN_HEIGHT - 12, themeColors.primary);
+    DisplayHelper::drawText("[?]Help", 4, SCREEN_HEIGHT - 12, themeColors.primary);
+
     drawStatusBar();
 }
 
 // ==================== WIFI SCAN ====================
+// REFATORADO: Usa DisplayHelper
 void scanWiFi() {
-    M5.Display.clear(themeColors.bg);
+    DisplayHelper::clear(themeColors.bg);
     drawHeader("Scanning WiFi...");
-    M5.Display.setCursor(4, 24);
-    M5.Display.println("Please wait...");
+    DisplayHelper::drawText("Please wait...", 4, 24, themeColors.fg);
     
     WiFi.mode(WIFI_STA);
     WiFi.disconnect();
@@ -656,59 +618,61 @@ void scanWiFi() {
     drawWiFiList();
 }
 
+// REFATORADO: Usa DisplayHelper para renderização mais limpa
 void drawWiFiList() {
-    M5.Display.clear(themeColors.bg);
+    DisplayHelper::clear(themeColors.bg);
     drawHeader("WiFi Networks");
-    
+
     // Animated WiFi icon
     static int wifiAnimFrame = 0;
     const char* wifiFrames[] = {"📡", "📶", "📳", "📶"};
-    M5.Display.setTextColor(themeColors.primary, themeColors.bg);
-    M5.Display.setCursor(210, 4);
-    M5.Display.print(wifiFrames[wifiAnimFrame % 4]);
+    DisplayHelper::drawText(wifiFrames[wifiAnimFrame % 4], 210, 4, themeColors.primary);
     wifiAnimFrame++;
-    
-    M5.Display.setTextColor(themeColors.fg, themeColors.bg);
-    
+
     int startIdx = max(0, selectedNetwork - 5);
     int endIdx = min(networkCount, startIdx + 6);
-    
+
     for (int i = startIdx; i < endIdx; i++) {
         int y = 24 + (i - startIdx) * 16;
-        M5.Display.setCursor(4, y);
-        
-        if (i == selectedNetwork) {
-            M5.Display.setTextColor(themeColors.bg, themeColors.success);
-            // Pulse effect
+        bool isSelected = (i == selectedNetwork);
+
+        // Pulse effect for selected item
+        if (isSelected) {
             static unsigned long lastPulse = 0;
             if (millis() - lastPulse > 500) {
-                M5.Display.fillRect(0, y - 2, 4, 14, themeColors.success);
+                DisplayHelper::drawRect(0, y - 2, 4, 14, themeColors.success);
                 lastPulse = millis();
             }
-        } else {
-            M5.Display.setTextColor(themeColors.fg, themeColors.bg);
         }
-        
+
         // Signal strength icon
         int rssi = networks[i].rssi;
-        const char* signalIcon = (rssi > -50) ? "▰▰▰▰" : 
-                                 (rssi > -70) ? "▰▰▰▱" : 
+        const char* signalIcon = (rssi > -50) ? "▰▰▰▰" :
+                                 (rssi > -70) ? "▰▰▰▱" :
                                  (rssi > -80) ? "▰▰▱▱" : "▰▱▱▱";
-        
+
         char line[40];
-        snprintf(line, sizeof(line), "%s %.15s %ddBm", 
+        snprintf(line, sizeof(line), "%s %.15s %ddBm",
                  signalIcon,
-                 networks[i].ssid.c_str(), 
+                 networks[i].ssid.c_str(),
                  networks[i].rssi);
-        M5.Display.println(line);
+
+        // Draw usando DisplayHelper
+        uint32_t textColor = isSelected ? themeColors.bg : themeColors.fg;
+        uint32_t bgColor = isSelected ? themeColors.success : themeColors.bg;
+
+        if (isSelected) {
+            DisplayHelper::drawRect(0, y - 2, SCREEN_WIDTH, 16, bgColor);
+        }
+        DisplayHelper::drawText(line, 4, y, textColor);
     }
-    
-    M5.Display.setTextColor(themeColors.secondary, themeColors.bg);
-    M5.Display.setCursor(4, SCREEN_HEIGHT - 24);
-    M5.Display.printf("%d/%d [D]Auth [H]Handshake", selectedNetwork + 1, networkCount);
-    M5.Display.setCursor(4, SCREEN_HEIGHT - 12);
-    M5.Display.println("[ESC]Back");
-    
+
+    // Hints
+    char infoText[50];
+    snprintf(infoText, sizeof(infoText), "%d/%d [D]Auth [H]Handshake", selectedNetwork + 1, networkCount);
+    DisplayHelper::drawText(infoText, 4, SCREEN_HEIGHT - 24, themeColors.secondary);
+    DisplayHelper::drawText("[ESC]Back", 4, SCREEN_HEIGHT - 12, themeColors.secondary);
+
     drawStatusBar();
 }
 
@@ -753,62 +717,59 @@ void startDeauth() {
     drawDeauthScreen();
 }
 
+// REFATORADO: Usa DisplayHelper para melhor organização
 void drawDeauthScreen() {
-    M5.Display.clear(themeColors.bg);
+    DisplayHelper::clear(themeColors.bg);
     drawHeader("Deauth Attack");
-    
-    M5.Display.setTextColor(themeColors.fg, themeColors.bg);
-    M5.Display.setCursor(4, 24);
-    M5.Display.printf("Target: %.18s\n", networks[selectedNetwork].ssid.c_str());
-    M5.Display.printf("BSSID: %02X:%02X:%02X:%02X:%02X:%02X\n",
-                     networks[selectedNetwork].bssid[0],
-                     networks[selectedNetwork].bssid[1],
-                     networks[selectedNetwork].bssid[2],
-                     networks[selectedNetwork].bssid[3],
-                     networks[selectedNetwork].bssid[4],
-                     networks[selectedNetwork].bssid[5]);
-    M5.Display.printf("Channel: %d\n", networks[selectedNetwork].channel);
-    M5.Display.printf("RSSI: %d dBm\n\n", networks[selectedNetwork].rssi);
-    
-    M5.Display.setTextColor(themeColors.error, themeColors.bg);
-    M5.Display.printf("Packets sent: %lu\n", deauthCount);
-    
+
+    char targetInfo[50];
+    snprintf(targetInfo, sizeof(targetInfo), "Target: %.18s", networks[selectedNetwork].ssid.c_str());
+    DisplayHelper::drawText(targetInfo, 4, 24, themeColors.fg);
+
+    char bssidInfo[50];
+    snprintf(bssidInfo, sizeof(bssidInfo), "BSSID: %02X:%02X:%02X:%02X:%02X:%02X",
+             networks[selectedNetwork].bssid[0],
+             networks[selectedNetwork].bssid[1],
+             networks[selectedNetwork].bssid[2],
+             networks[selectedNetwork].bssid[3],
+             networks[selectedNetwork].bssid[4],
+             networks[selectedNetwork].bssid[5]);
+    DisplayHelper::drawText(bssidInfo, 4, 34, themeColors.fg);
+
+    char channelInfo[30];
+    snprintf(channelInfo, sizeof(channelInfo), "Channel: %d", networks[selectedNetwork].channel);
+    DisplayHelper::drawText(channelInfo, 4, 44, themeColors.fg);
+
+    char rssiInfo[30];
+    snprintf(rssiInfo, sizeof(rssiInfo), "RSSI: %d dBm", networks[selectedNetwork].rssi);
+    DisplayHelper::drawText(rssiInfo, 4, 54, themeColors.fg);
+
+    char packetsInfo[30];
+    snprintf(packetsInfo, sizeof(packetsInfo), "Packets sent: %lu", deauthCount);
+    DisplayHelper::drawText(packetsInfo, 4, 70, themeColors.error);
+
     // Wave animation when attacking
     if (isDeauthing) {
-        M5.Display.setTextColor(themeColors.success, themeColors.bg);
-        M5.Display.println("\nATTACK ACTIVE!");
-        
+        DisplayHelper::drawText("\nATTACK ACTIVE!", 4, 85, themeColors.success);
+
         // Radio waves animation
         static int waveFrame = 0;
         const char* waves[] = {
-            ")    ",
-            "))   ",
-            ")))  ",
-            ")))) ",
-            ")))))",
-            " ))))",
-            "  )))",
-            "   ))",
-            "    )"
+            ")    ", "))   ", ")))  ", ")))) ", ")))))",
+            " ))))", "  )))", "   ))", "    )"
         };
-        M5.Display.setTextColor(themeColors.error, themeColors.bg);
-        M5.Display.setCursor(170, 90);
-        M5.Display.print(waves[waveFrame % 9]);
+        DisplayHelper::drawText(waves[waveFrame % 9], 170, 90, themeColors.error);
         waveFrame++;
-        
+
         // Attack burst indicator
         if (millis() % 200 < 100) {
-            M5.Display.fillCircle(200, 95, 3, themeColors.error);
+            DisplayHelper::drawStatusIndicator(200, 95, 3, themeColors.error);
         }
     } else {
-        M5.Display.setTextColor(themeColors.secondary, themeColors.bg);
-        M5.Display.println("\nPAUSED");
+        DisplayHelper::drawText("\nPAUSED", 4, 85, themeColors.secondary);
     }
-    
-    M5.Display.setTextColor(themeColors.secondary, themeColors.bg);
-    M5.Display.setCursor(4, SCREEN_HEIGHT - 24);
-    M5.Display.println("[SPACE]Pause [ESC]Stop");
-    
+
+    DisplayHelper::drawText("[SPACE]Pause [ESC]Stop", 4, SCREEN_HEIGHT - 24, themeColors.secondary);
     drawStatusBar();
 }
 
