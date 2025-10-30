@@ -43,12 +43,15 @@
 #include <Preferences.h>
 #include <map>
 #include <vector>
+#include "ConfigManager.h"
 #include "m5gotchi_progmem_strings.h"
 
 // ==================== CONFIGURATION ====================
-#define MAX_ACHIEVEMENTS 50
-#define MAX_EVENT_TYPES 30
-#define CACHE_SIZE 20
+namespace AchievementConfig {
+    constexpr size_t MAX_ACHIEVEMENTS = static_cast<size_t>(Config::Achievements::MAX_ACHIEVEMENTS);
+    constexpr size_t MAX_EVENT_TYPES = 30;
+    constexpr size_t CACHE_SIZE = 20;
+}
 
 // ==================== EVENT TYPES ====================
 /**
@@ -200,7 +203,7 @@ struct PlayerStats {
 class AchievementManager {
 private:
     // Data
-    Achievement achievements[MAX_ACHIEVEMENTS];
+    Achievement achievements[AchievementConfig::MAX_ACHIEVEMENTS];
     uint8_t achievementCount;
     PlayerStats stats;
     
@@ -208,7 +211,7 @@ private:
     std::map<AchievementEvent, std::vector<uint8_t>> eventToAchievements;
     
     // Cache de unlocked
-    uint8_t unlockedCache[CACHE_SIZE];
+    uint8_t unlockedCache[AchievementConfig::CACHE_SIZE];
     uint8_t unlockedCacheSize;
     
     // New unlocks queue
@@ -278,7 +281,7 @@ public:
     void addAchievement(uint8_t id, const char* name, const char* desc, 
                        const char* emoji, uint8_t category, uint8_t rarity,
                        uint16_t required, uint16_t points) {
-        if (achievementCount >= MAX_ACHIEVEMENTS) return;
+    if (achievementCount >= AchievementConfig::MAX_ACHIEVEMENTS) return;
         
         Achievement& ach = achievements[achievementCount++];
         ach.id = id;
@@ -448,7 +451,7 @@ public:
     void updateCache() {
         unlockedCacheSize = 0;
         
-        for (uint8_t i = 0; i < achievementCount && unlockedCacheSize < CACHE_SIZE; i++) {
+    for (uint8_t i = 0; i < achievementCount && unlockedCacheSize < AchievementConfig::CACHE_SIZE; i++) {
             if (achievements[i].isUnlocked()) {
                 unlockedCache[unlockedCacheSize++] = i;
             }

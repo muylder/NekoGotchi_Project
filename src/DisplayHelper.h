@@ -16,6 +16,49 @@ struct ThemeColors {
     uint32_t header;    // Header bar
     uint32_t selected;  // Selected item
     uint32_t accent;    // Accent color
+        uint32_t primary = accent;    // Legacy support - primary color
+        uint32_t secondary = fg;      // Legacy support - secondary color
+        uint32_t success = accent;    // Legacy support - success color
+        uint32_t warning = accent;    // Legacy support - warning color
+        uint32_t error = accent;      // Legacy support - error color
+
+        ThemeColors() = default;
+        ThemeColors(uint32_t bgColor,
+                                uint32_t fgColor,
+                                uint32_t headerColor,
+                                uint32_t selectedColor,
+                                uint32_t accentColor)
+                : bg(bgColor),
+                    fg(fgColor),
+                    header(headerColor),
+                    selected(selectedColor),
+                    accent(accentColor),
+                    primary(accentColor),
+                    secondary(fgColor),
+                    success(accentColor),
+                    warning(accentColor),
+                    error(accentColor) {}
+
+        ThemeColors(uint32_t bgColor,
+                                uint32_t fgColor,
+                                uint32_t headerColor,
+                                uint32_t selectedColor,
+                                uint32_t accentColor,
+                                uint32_t primaryColor,
+                                uint32_t secondaryColor,
+                                uint32_t successColor,
+                                uint32_t warningColor,
+                                uint32_t errorColor)
+                : bg(bgColor),
+                    fg(fgColor),
+                    header(headerColor),
+                    selected(selectedColor),
+                    accent(accentColor),
+                    primary(primaryColor),
+                    secondary(secondaryColor),
+                    success(successColor),
+                    warning(warningColor),
+                    error(errorColor) {}
 };
 
 class DisplayHelper {

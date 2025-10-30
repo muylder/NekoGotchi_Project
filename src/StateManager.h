@@ -45,7 +45,12 @@ enum OperationMode {
     MODE_NEKO_PET,
     MODE_ACHIEVEMENTS,
     MODE_TUTORIAL,
-    MODE_SETTINGS
+    MODE_SETTINGS,
+    // Legacy compatibility aliases
+    MODE_RF433 = MODE_RF_REMOTE,
+    MODE_RFID_NFC = MODE_RFID_READER,
+    MODE_BLUETOOTH = MODE_BLE_SPAM,
+    MODE_LOG_VIEWER = MODE_SETTINGS + 1
 };
 
 // Estado WiFi (expandido)

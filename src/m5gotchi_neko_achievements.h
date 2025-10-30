@@ -33,20 +33,17 @@
 #include <M5Unified.h>
 #include <vector>
 #include <map>
+#include "ConfigManager.h"
 #include "m5gotchi_universal_controls.h"
 #include "m5gotchi_neko_sounds.h"
 
 // ==================== MEMORY LIMITS ====================
-#define MAX_ACHIEVEMENTS 50
-#define MAX_PENDING_NOTIFICATIONS 10
-#define MAX_ACHIEVEMENT_NAME_LEN 32
-#define MAX_ACHIEVEMENT_DESC_LEN 64
-
-// ==================== MEMORY LIMITS ====================
-#define MAX_ACHIEVEMENTS 50
-#define MAX_PENDING_NOTIFICATIONS 10
-#define MAX_ACHIEVEMENT_NAME_LEN 32
-#define MAX_ACHIEVEMENT_DESC_LEN 64
+namespace NekoAchievementConfig {
+    constexpr size_t MAX_ACHIEVEMENTS = static_cast<size_t>(Config::Achievements::MAX_ACHIEVEMENTS);
+    constexpr size_t MAX_PENDING_NOTIFICATIONS = 10;
+    constexpr size_t MAX_ACHIEVEMENT_NAME_LEN = 32;
+    constexpr size_t MAX_ACHIEVEMENT_DESC_LEN = 64;
+}
 
 // ==================== ACHIEVEMENT ENUMS ====================
 enum AchievementCategory {
@@ -194,8 +191,8 @@ public:
         lastAnimUpdate = 0;
         nekoSounds = nullptr;
         
-        achievements.reserve(MAX_ACHIEVEMENTS);
-        pendingNotifications.reserve(MAX_PENDING_NOTIFICATIONS);
+    achievements.reserve(NekoAchievementConfig::MAX_ACHIEVEMENTS);
+    pendingNotifications.reserve(NekoAchievementConfig::MAX_PENDING_NOTIFICATIONS);
         
         initializeStats();
     }

@@ -39,9 +39,6 @@
 #include "StateManager.h"
 #include "MenuManager.h"
 
-// Use Config namespace for easier access
-using namespace Config;
-
 // ==================== CONFIGURAÇÕES ====================
 // NOTA: Constantes movidas para ConfigManager.h (Config namespace)
 // Acesse via: Config::Display::WIDTH, Config::WiFi::MAX_NETWORKS, etc.
@@ -392,27 +389,18 @@ enum Theme {
 };
 Theme currentTheme = THEME_DARK;
 
-struct ThemeColors {
-    uint16_t bg;
-    uint16_t fg;
-    uint16_t primary;
-    uint16_t secondary;
-    uint16_t success;
-    uint16_t warning;
-    uint16_t error;
-    uint16_t header;
-};
-
-ThemeColors themeColors = {
+ThemeColors themeColors(
     TFT_BLACK,      // bg
     TFT_WHITE,      // fg
+    TFT_DARKGREEN,  // header
+    TFT_DARKGREEN,  // selected
+    TFT_CYAN,       // accent
     TFT_CYAN,       // primary
     TFT_YELLOW,     // secondary
     TFT_GREEN,      // success
     TFT_ORANGE,     // warning
-    TFT_RED,        // error
-    TFT_DARKGREEN   // header
-};
+    TFT_RED         // error
+);
 
 // WPS Attack
 // bool isWPSAttacking = false;  // MIGRADO → STATE.wps.isWPSAttacking
@@ -3940,19 +3928,69 @@ void applyTheme(Theme theme) {
     
     switch(theme) {
         case THEME_DARK:
-            themeColors = {TFT_BLACK, TFT_WHITE, TFT_CYAN, TFT_YELLOW, TFT_GREEN, TFT_ORANGE, TFT_RED, TFT_DARKGREEN};
+            themeColors = ThemeColors(
+                TFT_BLACK,
+                TFT_WHITE,
+                TFT_DARKGREEN,
+                TFT_DARKGREEN,
+                TFT_CYAN,
+                TFT_CYAN,
+                TFT_YELLOW,
+                TFT_GREEN,
+                TFT_ORANGE,
+                TFT_RED);
             break;
         case THEME_NEON:
-            themeColors = {0x0010, TFT_MAGENTA, TFT_CYAN, TFT_PINK, TFT_GREEN, TFT_YELLOW, TFT_RED, TFT_PURPLE};
+            themeColors = ThemeColors(
+                0x0010,
+                TFT_MAGENTA,
+                TFT_PURPLE,
+                TFT_MAGENTA,
+                TFT_CYAN,
+                TFT_CYAN,
+                TFT_PINK,
+                TFT_GREEN,
+                TFT_YELLOW,
+                TFT_RED);
             break;
         case THEME_KAWAII:
-            themeColors = {TFT_PINK, TFT_WHITE, 0xFBE0, 0xFFE0, TFT_GREEN, TFT_ORANGE, TFT_RED, TFT_PINK};
+            themeColors = ThemeColors(
+                TFT_PINK,
+                TFT_WHITE,
+                TFT_PINK,
+                0xFFE0,
+                0xFBE0,
+                0xFBE0,
+                0xFFE0,
+                TFT_GREEN,
+                TFT_ORANGE,
+                TFT_RED);
             break;
         case THEME_MATRIX:
-            themeColors = {TFT_BLACK, TFT_GREEN, TFT_DARKGREEN, TFT_GREENYELLOW, TFT_GREEN, TFT_YELLOW, TFT_RED, TFT_DARKGREEN};
+            themeColors = ThemeColors(
+                TFT_BLACK,
+                TFT_GREEN,
+                TFT_DARKGREEN,
+                TFT_DARKGREEN,
+                TFT_GREENYELLOW,
+                TFT_GREENYELLOW,
+                TFT_GREEN,
+                TFT_GREEN,
+                TFT_YELLOW,
+                TFT_RED);
             break;
         case THEME_TERMINAL:
-            themeColors = {TFT_BLACK, TFT_GREEN, TFT_GREEN, TFT_YELLOW, TFT_GREEN, TFT_YELLOW, TFT_RED, TFT_DARKGREEN};
+            themeColors = ThemeColors(
+                TFT_BLACK,
+                TFT_GREEN,
+                TFT_DARKGREEN,
+                TFT_GREEN,
+                TFT_GREEN,
+                TFT_GREEN,
+                TFT_YELLOW,
+                TFT_GREEN,
+                TFT_YELLOW,
+                TFT_RED);
             break;
     }
     
