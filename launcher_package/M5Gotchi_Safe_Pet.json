@@ -1,0 +1,132 @@
+{
+  "version": "1.0.0",
+  "name": "M5Gotchi Safe Pet",
+  "author": "M5Gotchi Team",
+  "description": "🐱 Kawaii Virtual Pet - Safe Version (No WiFi password saving)",
+  "category": "Entertainment",
+  "created": "2025-10-30",
+  "updated": "2025-10-30",
+  
+  "firmware": {
+    "file": "M5Gotchi_Safe_Pet_MERGED.bin",
+    "size": "875 KB",
+    "offset": "0x0",
+    "type": "merged"
+  },
+  
+  "features": [
+    "🐱 Cute animated cat sprite (3x larger!)",
+    "💗 Pet status system (Hunger, Happiness, Energy)",
+    "📊 XP and Level progression",
+    "📡 WiFi Scanner (passive scan only - NO password saving!)",
+    "🎮 Simple controls with keyboard",
+    "🎨 Kawaii pink & cyan theme",
+    "🛡️ 100% Safe - No pentesting features"
+  ],
+  
+  "requirements": {
+    "device": "M5Stack Cardputer",
+    "chip": "ESP32-S3",
+    "ram": "320KB (uses 14.3%)",
+    "flash": "3MB (uses 26.4%)"
+  },
+  
+  "installation_sd_card": {
+    "steps": [
+      "1. Copie M5Gotchi_Safe_Pet_MERGED.bin para o SD card",
+      "2. No Cardputer, abra o Launcher",
+      "3. Navegue até Apps → Custom",
+      "4. Selecione M5Gotchi_Safe_Pet_MERGED.bin",
+      "5. Pressione ENTER para instalar",
+      "6. Aguarde o flash e reinicie"
+    ],
+    "sd_structure": [
+      "SD_CARD/",
+      "├── M5Gotchi_Safe_Pet_MERGED.bin  (Este arquivo)",
+      "└── M5Gotchi_Safe_Pet.json        (Este JSON)"
+    ]
+  },
+  
+  "installation_usb": {
+    "method_1_script": [
+      "1. Execute: .\\bin\\flash_safe_pet.ps1",
+      "2. Script detecta porta automaticamente",
+      "3. Aguarde conclusão"
+    ],
+    "method_2_esptool": [
+      "esptool.py --chip esp32s3 --port COM3 write_flash 0x0 M5Gotchi_Safe_Pet_MERGED.bin"
+    ]
+  },
+  
+  "controls": {
+    "menu": "G key",
+    "up": "; (semicolon) key",
+    "down": ". (period) key",
+    "select": "ENTER key",
+    "pet_action": "SPACE key",
+    "feed": "O key"
+  },
+  
+  "pet_status": {
+    "hunger": "Decreases every 30s",
+    "happiness": "Decreases every 45s",
+    "energy": "Decreases every 60s",
+    "xp_system": "Gain XP by taking care of your pet",
+    "level_up": "Level increases with XP"
+  },
+  
+  "safety": {
+    "no_wifi_passwords": "✅ Does NOT save WiFi passwords",
+    "no_credentials": "✅ Does NOT log credentials",
+    "no_pentesting": "✅ Does NOT include pentesting tools",
+    "no_evil_portal": "✅ Does NOT have evil portal",
+    "safe_for_home": "✅ Safe for personal/home use"
+  },
+  
+  "theme": {
+    "primary": "Pink (0xFD20)",
+    "secondary": "Cyan (0x07FF)",
+    "background": "Dark Blue (0x0010)",
+    "cat_sprite": "3x larger than default"
+  },
+  
+  "changelog": {
+    "1.0.0": [
+      "✨ Initial safe pet release",
+      "🐱 Kawaii cat with smooth animations",
+      "💗 Pet status system implemented",
+      "🎮 Universal keyboard controls",
+      "🛡️ All pentesting features removed",
+      "📊 Memory optimized (14.3% RAM)"
+    ]
+  },
+  
+  "troubleshooting": {
+    "pet_not_responding": "Press SPACE or O to interact",
+    "status_decreasing": "Normal behavior - feed and pet regularly",
+    "wifi_scan_empty": "Move to area with WiFi networks",
+    "controls_not_working": "Check keyboard connection"
+  },
+  
+  "important_security_notice": {
+    "if_used_old_firmware": [
+      "⚠️ If you previously used the pentesting firmware:",
+      "1. Delete these files from SD card:",
+      "   - /config.json",
+      "   - /credentials.txt", 
+      "   - /session.json",
+      "   - /logs/",
+      "   - /handshakes/",
+      "   - /portals/",
+      "2. CHANGE YOUR WIFI PASSWORD IMMEDIATELY!",
+      "3. See CLEANUP_QUICKSTART.md for detailed steps"
+    ]
+  },
+  
+  "links": {
+    "github": "https://github.com/muylder/NekoGotchi_Project",
+    "installation_guide": "See INSTALLATION_GUIDE.md",
+    "package_info": "See PACKAGE_INFO.md",
+    "security_cleanup": "See CLEANUP_QUICKSTART.md"
+  }
+}

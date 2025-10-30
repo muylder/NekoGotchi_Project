@@ -1,0 +1,38 @@
+{
+  "version": "1.0.0",
+  "title": "M5Gotchi Safe Pet 🐱",
+  "description": "Kawaii Virtual Pet - Safe Version (No WiFi password saving)",
+  "author": "M5Gotchi Team",
+  "category": "Entertainment",
+  "website": "https://github.com/muylder/NekoGotchi_Project",
+  "hardware": ["M5Cardputer"],
+  "language": ["en", "pt"],
+  "created": "2025-10-30",
+  "updated": "2025-10-30",
+  "size": 830533,
+  "downloadUrl": "https://raw.githubusercontent.com/muylder/NekoGotchi_Project/main/bin/M5Gotchi_Safe_Pet.bin",
+  "images": [
+    "https://raw.githubusercontent.com/muylder/NekoGotchi_Project/main/docs/screenshot_pet.png"
+  ],
+  "versions": [
+    {
+      "version": "1.0.0",
+      "minVersion": "1.0.0",
+      "files": [
+        {
+          "address": "0x0000",
+          "file": "bootloader.bin"
+        },
+        {
+          "address": "0x8000",
+          "file": "partitions.bin"
+        },
+        {
+          "address": "0x10000",
+          "file": "M5Gotchi_Safe_Pet.bin"
+        }
+      ]
+    }
+  ],
+  "readme": "# M5Gotchi Safe Pet 🐱\n\n## Safe Virtual Pet for M5Cardputer\n\n### Features:\n- 🐱 Cute animated cat sprite (3x larger!)\n- 💗 Pet status system (Hunger, Happiness, Energy)\n- 📊 XP and Level progression\n- 📡 WiFi Scanner (passive scan only - NO password saving!)\n- 🎮 Simple controls with keyboard\n- 🎨 Kawaii pink & cyan theme\n\n### Controls:\n- **G** = Menu\n- **;** (semicolon) = Up\n- **.** (period) = Down  \n- **Enter** = Select\n- **Space** = Pet action\n- **O** = Feed\n\n### Safety:\n✅ NO WiFi password saving\n✅ NO credential logging\n✅ NO pentesting features\n✅ NO evil portal\n✅ Safe for home use!\n\n### Status Decay:\n- Hunger decreases every 30s\n- Happiness decreases every 45s\n- Energy decreases every 60s\n\nTake care of your virtual pet! 🐾\n\n---\n\n**Security Notice:**\nThis is the SAFE version without any pentesting capabilities.\nFor the full pentesting version, see main_cardputer.cpp (use responsibly!).\n"
+}
