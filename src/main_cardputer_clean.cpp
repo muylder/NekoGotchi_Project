@@ -11,16 +11,31 @@
 #include <M5Cardputer.h>
 #include <WiFi.h>
 #include <Preferences.h>  // For persistent storage
+#include <cstdio>          // For snprintf
 
 // ==================== CONFIGURAÇÕES ====================
 #define SCREEN_WIDTH 240
 #define SCREEN_HEIGHT 135
 
-// Cores Hacker Matrix Style
-#define COLOR_BG 0x0000        // Preto puro
-#define COLOR_NEKO 0x07E0      // Verde brilhante (Matrix green)
-#define COLOR_HIGHLIGHT 0x07FF // Ciano
-#define COLOR_TEXT 0x2DE6      // Verde claro
+// Paletas editáveis (RGB565)
+const uint16_t BG_COLOR_OPTIONS[]      = {0x0000, 0x4208, 0x001F, 0x5AEB, 0x7BEF};
+const char*    BG_COLOR_NAMES[]        = {"Black", "Teal", "Deep Blue", "Violet", "Gray"};
+const uint16_t NEKO_COLOR_OPTIONS[]    = {0x0000, 0x07E0, 0xFFFF, 0xF800, 0xFFE0};
+const char*    NEKO_COLOR_NAMES[]      = {"Black", "Matrix", "White", "Red", "Yellow"};
+const uint16_t HIGHLIGHT_COLOR_OPTIONS[] = {0x07FF, 0xFFE0, 0xF81F, 0xFD20, 0x07E0};
+const char*    HIGHLIGHT_COLOR_NAMES[] = {"Cyan", "Lime", "Magenta", "Orange", "Green"};
+const uint16_t TEXT_COLOR_OPTIONS[]    = {0x2DE6, 0xFFFF, 0xC618, 0xFD20, 0x07FF};
+const char*    TEXT_COLOR_NAMES[]      = {"Mint", "White", "Silver", "Amber", "Cyan"};
+
+const int BG_COLOR_COUNT       = sizeof(BG_COLOR_OPTIONS) / sizeof(uint16_t);
+const int NEKO_COLOR_COUNT     = sizeof(NEKO_COLOR_OPTIONS) / sizeof(uint16_t);
+const int HIGHLIGHT_COLOR_COUNT= sizeof(HIGHLIGHT_COLOR_OPTIONS) / sizeof(uint16_t);
+const int TEXT_COLOR_COUNT     = sizeof(TEXT_COLOR_OPTIONS) / sizeof(uint16_t);
+
+const int BG_COLOR_DEFAULT_INDEX        = 1; // Teal
+const int NEKO_COLOR_DEFAULT_INDEX      = 0; // Black
+const int HIGHLIGHT_COLOR_DEFAULT_INDEX = 0; // Cyan
+const int TEXT_COLOR_DEFAULT_INDEX      = 0; // Mint
 #define COLOR_STAT_GOOD 0x07E0 // Verde brilhante
 #define COLOR_STAT_OK 0x7FE0   // Verde médio
 #define COLOR_STAT_BAD 0xF800  // Vermelho (alerta)
@@ -55,18 +70,32 @@ enum MoodState {
 };
 
 // ==================== VARIÁVEIS GLOBAIS ====================
+int bgColorIndex        = BG_COLOR_DEFAULT_INDEX;
+int nekoColorIndex      = NEKO_COLOR_DEFAULT_INDEX;
+int highlightColorIndex = HIGHLIGHT_COLOR_DEFAULT_INDEX;
+int textColorIndex      = TEXT_COLOR_DEFAULT_INDEX;
+
+uint16_t colorBg        = BG_COLOR_OPTIONS[BG_COLOR_DEFAULT_INDEX];
+uint16_t colorNeko      = NEKO_COLOR_OPTIONS[NEKO_COLOR_DEFAULT_INDEX];
+uint16_t colorHighlight = HIGHLIGHT_COLOR_OPTIONS[HIGHLIGHT_COLOR_DEFAULT_INDEX];
+uint16_t colorText      = TEXT_COLOR_OPTIONS[TEXT_COLOR_DEFAULT_INDEX];
+
+#define COLOR_BG colorBg
+#define COLOR_NEKO colorNeko
+#define COLOR_HIGHLIGHT colorHighlight
+#define COLOR_TEXT colorText
+
 Page currentPage = PAGE_HOME;
 int menuSelection = 0;
 int maxMenuItems = 6;  // Aumentado para 6 (adicionando Test Mode)
 int bluetoothSelection = 0;  // For Bluetooth menu
 int toolsSelection = 0;       // For Tools menu
 bool needsRedraw = true;
-unsigned long lastAnimUpdate = 0;
 unsigned long lastStatusUpdate = 0;
 unsigned long lastSerialHeartbeat = 0;  // For serial debug
 unsigned long lastAlertBlink = 0;       // For blinking alerts
 bool alertVisible = true;               // Alert blink state
-int nekoFrame = 0;
+int settingsSelection = 0;
 
 // Pet Status
 int hunger = 100;     // 0-100 (começa cheio)
@@ -76,8 +105,25 @@ int level = 0;        // Começa no level 0
 int experience = 0;   // Começa com 0 XP
 String petName = "NEKO";  // Nome editável do pet
 
+const unsigned long MOOD_MESSAGE_INTERVAL = 6000; // 6s per message
+String currentMoodMessage = "";
+MoodState lastMoodForMessage = MOOD_NEUTRAL;
+unsigned long lastMoodMessageUpdate = 0;
+
+// Tamagotchi Features
+int weight = 10;      // Peso em kg (10-30)
+int discipline = 0;   // 0-100 (treinamento)
+int hygiene = 100;    // 0-100 (limpeza)
+bool isSick = false;  // Estado de doença
+int poopCount = 0;    // Quantidade de cocôs na tela
+unsigned long lastPoopTime = 0;
+bool needsAttention = false;  // Pet chamando atenção
+unsigned long lastCallTime = 0;
+
 // Uptime
 unsigned long sessionStartTime = 0;
+uint64_t petAgeSeconds = 0;
+unsigned long lastAgeTickMillis = 0;
 
 // WiFi
 std::vector<String> wifiNetworks;
@@ -114,6 +160,331 @@ const char** getCurrentNekoFrames() {
     if (level <= 5) return nekoFramesBaby;
     else if (level <= 15) return nekoFramesTeen;
     else return nekoFramesAdult;
+}
+
+// Blink animation frames
+const char* nekoBlinkBaby[] = {
+    "  /\\_/\\  \n ( ^.^ ) \n  >   <  ",
+    "  /\\_/\\  \n ( -.- ) \n  >   <  ",
+    "  /\\_/\\  \n ( ^.^ ) \n  >   <  "
+};
+
+const char* nekoBlinkTeen[] = {
+    "  /\\_/\\  \n ( ^.^ ) \n  >[*]<  ",
+    "  /\\_/\\  \n ( -.- ) \n  >[#]<  ",
+    "  /\\_/\\  \n ( ^.^ ) \n  >[*]<  "
+};
+
+const char* nekoBlinkAdult[] = {
+    "  /\\_/\\  \n ( ^.^ ) \n  >[$]<  ",
+    "  /\\_/\\  \n ( -.- ) \n  >[#]<  ",
+    "  /\\_/\\  \n ( ^.^ ) \n  >[$]<  "
+};
+
+// Ear wiggle animation
+const char* nekoEarBaby[] = {
+    "  /\\_/\\  \n ( ^.^ ) \n  >   <  ",
+    "  /\\_//  \n ( ^.^ ) \n  >   <  ",
+    "  //_/\\  \n ( ^.^ ) \n  >   <  "
+};
+
+const char* nekoEarTeen[] = {
+    "  /\\_/\\  \n ( ^.^ ) \n  >[*]<  ",
+    "  /\\_//  \n ( ^.^ ) \n  >[#]<  ",
+    "  //_/\\  \n ( ^.^ ) \n  >[*]<  "
+};
+
+const char* nekoEarAdult[] = {
+    "  /\\_/\\  \n ( ^.^ ) \n  >[$]<  ",
+    "  /\\_//  \n ( ^.^ ) \n  >[#]<  ",
+    "  //_/\\  \n ( ^.^ ) \n  >[$]<  "
+};
+
+// Tail wag animation
+const char* nekoTailBaby[] = {
+    "  /\\_/\\  \n ( ^w^ ) \n  >   <  ",
+    "  /\\_/\\  \n ( ^w^ ) \n  >  ~<  ",
+    "  /\\_/\\  \n ( ^w^ ) \n  > ~  <  "
+};
+
+const char* nekoTailTeen[] = {
+    "  /\\_/\\  \n ( ^w^ ) \n  >[*]<  ",
+    "  /\\_/\\  \n ( ^w^ ) \n  >[~]<  ",
+    "  /\\_/\\  \n ( ^w^ ) \n  >[*]<~ "
+};
+
+const char* nekoTailAdult[] = {
+    "  /\\_/\\  \n ( ^w^ ) \n  >[$]<  ",
+    "  /\\_/\\  \n ( ^w^ ) \n  >[$]~  ",
+    "  /\\_/\\  \n ( ^w^ ) \n  >[$]<  "
+};
+
+// Paw lick animation
+const char* nekoLickBaby[] = {
+    "  /\\_/\\  \n ( ^.^ ) \n  >  u/  ",
+    "  /\\_/\\  \n ( ^o^ ) \n  >  u~  ",
+    "  /\\_/\\  \n ( ^.^ ) \n  >  u/  ",
+    "  /\\_/\\  \n ( ^.^ ) \n  >   <  "
+};
+
+const char* nekoLickTeen[] = {
+    "  /\\_/\\  \n ( ^.^ ) \n  >u[*] ",
+    "  /\\_/\\  \n ( ^o^ ) \n  >u[#] ",
+    "  /\\_/\\  \n ( ^.^ ) \n  >u[*] ",
+    "  /\\_/\\  \n ( ^.^ ) \n  >[*]<  "
+};
+
+const char* nekoLickAdult[] = {
+    "  /\\_/\\  \n ( ^.^ ) \n  >u[$] ",
+    "  /\\_/\\  \n ( ^o^ ) \n  >u[#] ",
+    "  /\\_/\\  \n ( ^.^ ) \n  >u[$] ",
+    "  /\\_/\\  \n ( ^.^ ) \n  >[$]<  "
+};
+
+// Hack mode animation
+const char* nekoHackBaby[] = {
+    "  /\\_/\\  \n ( [ ] ) \n  >_=_<  ",
+    "  /\\_/\\  \n ( [#] ) \n  >_=_<  ",
+    "  /\\_/\\  \n ( [ ] ) \n  >_=_<  "
+};
+
+const char* nekoHackTeen[] = {
+    "  /\\_/\\  \n ( [ ] ) \n  >[*]<  ",
+    "  /\\_/\\  \n ( [#] ) \n  >[#]<  ",
+    "  /\\_/\\  \n ( [ ] ) \n  >[*]<  "
+};
+
+const char* nekoHackAdult[] = {
+    "  /\\_/\\  \n ( [ ] ) \n  >[$]<  ",
+    "  /\\_/\\  \n ( [#] ) \n  >[#]<  ",
+    "  /\\_/\\  \n ( [ ] ) \n  >[$]<  "
+};
+
+// Sleep animation
+const char* nekoSleepBaby[] = {
+    "  /\\_/\\  \n ( -.- ) \n  zzzz   ",
+    "  /\\_/\\  \n ( -.- ) \n   Zzz   ",
+    "  /\\_/\\  \n ( -.- ) \n  zzzz   "
+};
+
+const char* nekoSleepTeen[] = {
+    "  /\\_/\\  \n ( -.- ) \n  z[*]  ",
+    "  /\\_/\\  \n ( -.- ) \n   Zzz   ",
+    "  /\\_/\\  \n ( -.- ) \n  z[*]  "
+};
+
+const char* nekoSleepAdult[] = {
+    "  /\\_/\\  \n ( -.- ) \n  z[$]  ",
+    "  /\\_/\\  \n ( -.- ) \n   Zzz   ",
+    "  /\\_/\\  \n ( -.- ) \n  z[$]  "
+};
+
+struct NekoAnimationDefinition {
+    const char* name;
+    const char** framesBaby;
+    int frameCountBaby;
+    const char** framesTeen;
+    int frameCountTeen;
+    const char** framesAdult;
+    int frameCountAdult;
+    int frameDurationMs;
+    int minDurationMs;
+};
+
+const NekoAnimationDefinition NEKO_ANIM_IDLE = {
+    "idle",
+    nekoFramesBaby, 4,
+    nekoFramesTeen, 4,
+    nekoFramesAdult, 4,
+    450,
+    3000
+};
+
+const NekoAnimationDefinition NEKO_ANIM_BLINK = {
+    "blink",
+    nekoBlinkBaby, 3,
+    nekoBlinkTeen, 3,
+    nekoBlinkAdult, 3,
+    180,
+    600
+};
+
+const NekoAnimationDefinition NEKO_ANIM_EAR = {
+    "ear",
+    nekoEarBaby, 3,
+    nekoEarTeen, 3,
+    nekoEarAdult, 3,
+    200,
+    1500
+};
+
+const NekoAnimationDefinition NEKO_ANIM_TAIL = {
+    "tail",
+    nekoTailBaby, 3,
+    nekoTailTeen, 3,
+    nekoTailAdult, 3,
+    220,
+    1800
+};
+
+const NekoAnimationDefinition NEKO_ANIM_LICK = {
+    "lick",
+    nekoLickBaby, 4,
+    nekoLickTeen, 4,
+    nekoLickAdult, 4,
+    240,
+    2200
+};
+
+const NekoAnimationDefinition NEKO_ANIM_HACK = {
+    "hack",
+    nekoHackBaby, 3,
+    nekoHackTeen, 3,
+    nekoHackAdult, 3,
+    200,
+    2000
+};
+
+const NekoAnimationDefinition NEKO_ANIM_SLEEP = {
+    "sleep",
+    nekoSleepBaby, 3,
+    nekoSleepTeen, 3,
+    nekoSleepAdult, 3,
+    500,
+    3000
+};
+
+struct NekoAnimationState {
+    const NekoAnimationDefinition* active;
+    int frameIndex;
+    unsigned long lastFrameChange;
+    unsigned long lastAnimationChange;
+};
+
+NekoAnimationState nekoAnimationState = {nullptr, 0, 0, 0};
+
+const char** getStageFrames(const NekoAnimationDefinition* anim, int& frameCount) {
+    if (!anim) {
+        frameCount = 0;
+        return nullptr;
+    }
+    if (level <= 5) {
+        frameCount = anim->frameCountBaby;
+        return anim->framesBaby;
+    }
+    if (level <= 15) {
+        frameCount = anim->frameCountTeen;
+        return anim->framesTeen;
+    }
+    frameCount = anim->frameCountAdult;
+    return anim->framesAdult;
+}
+
+MoodState getCurrentMood();
+
+const NekoAnimationDefinition* chooseNekoAnimation(MoodState mood) {
+    if (currentPage != PAGE_HOME) {
+        return &NEKO_ANIM_IDLE;
+    }
+
+    if (isSick) {
+        return &NEKO_ANIM_LICK;
+    }
+
+    if (energy < 25 || mood == MOOD_SLEEPY) {
+        return &NEKO_ANIM_SLEEP;
+    }
+
+    const NekoAnimationDefinition* candidates[8];
+    int count = 0;
+    candidates[count++] = &NEKO_ANIM_IDLE;
+
+    if (mood == MOOD_EXCITED || mood == MOOD_HAPPY || mood == MOOD_PLAYFUL) {
+        candidates[count++] = &NEKO_ANIM_TAIL;
+        candidates[count++] = &NEKO_ANIM_EAR;
+    }
+
+    if (mood == MOOD_HUNGRY || hunger < 35) {
+        candidates[count++] = &NEKO_ANIM_LICK;
+    }
+
+    if (discipline > 70 || mood == MOOD_CONTENT) {
+        candidates[count++] = &NEKO_ANIM_HACK;
+    }
+
+    // Blink always possible
+    candidates[count++] = &NEKO_ANIM_BLINK;
+
+    if (count == 0) {
+        return &NEKO_ANIM_IDLE;
+    }
+
+    int choice = random(count);
+    return candidates[choice];
+}
+
+void updateNekoAnimation(unsigned long now) {
+    MoodState mood = getCurrentMood();
+
+    if (!nekoAnimationState.active) {
+        nekoAnimationState.active = &NEKO_ANIM_IDLE;
+        nekoAnimationState.frameIndex = 0;
+        nekoAnimationState.lastFrameChange = now;
+        nekoAnimationState.lastAnimationChange = now;
+    }
+
+    if (currentPage != PAGE_HOME && nekoAnimationState.active != &NEKO_ANIM_IDLE) {
+        nekoAnimationState.active = &NEKO_ANIM_IDLE;
+        nekoAnimationState.frameIndex = 0;
+        nekoAnimationState.lastFrameChange = now;
+        nekoAnimationState.lastAnimationChange = now;
+    }
+
+    if (now - nekoAnimationState.lastAnimationChange >= static_cast<unsigned long>(nekoAnimationState.active->minDurationMs)) {
+        const NekoAnimationDefinition* nextAnim = chooseNekoAnimation(mood);
+        if (nextAnim != nekoAnimationState.active) {
+            nekoAnimationState.active = nextAnim;
+            nekoAnimationState.frameIndex = 0;
+            nekoAnimationState.lastFrameChange = now;
+            nekoAnimationState.lastAnimationChange = now;
+            needsRedraw = true;
+        } else {
+            nekoAnimationState.lastAnimationChange = now;
+        }
+    }
+
+    int frameCount = 0;
+    const char** frames = getStageFrames(nekoAnimationState.active, frameCount);
+    if (frameCount > 0 && frames) {
+        int duration = max(80, nekoAnimationState.active->frameDurationMs);
+        if (now - nekoAnimationState.lastFrameChange >= static_cast<unsigned long>(duration)) {
+            nekoAnimationState.frameIndex = (nekoAnimationState.frameIndex + 1) % frameCount;
+            nekoAnimationState.lastFrameChange = now;
+            if (currentPage == PAGE_HOME) {
+                needsRedraw = true;
+            }
+        }
+    }
+}
+
+int clampPaletteIndex(int value, int count, int fallback) {
+    if (value < 0 || value >= count) {
+        return fallback;
+    }
+    return value;
+}
+
+void applyColorPalette() {
+    colorBg        = BG_COLOR_OPTIONS[bgColorIndex];
+    colorNeko      = NEKO_COLOR_OPTIONS[nekoColorIndex];
+    colorHighlight = HIGHLIGHT_COLOR_OPTIONS[highlightColorIndex];
+    colorText      = TEXT_COLOR_OPTIONS[textColorIndex];
+}
+
+String colorToHex(uint16_t value) {
+    char buffer[8];
+    std::snprintf(buffer, sizeof(buffer), "#%04X", value);
+    return String(buffer);
 }
 
 // ==================== MOOD & MESSAGING SYSTEM ====================
@@ -281,6 +652,34 @@ String getMoodMessage(MoodState mood) {
     }
 }
 
+void updateMoodMessage(unsigned long now) {
+    MoodState mood = getCurrentMood();
+    bool moodChanged = (mood != lastMoodForMessage);
+
+    if (currentMoodMessage.length() == 0 || moodChanged) {
+        currentMoodMessage = getMoodMessage(mood);
+        lastMoodForMessage = mood;
+        lastMoodMessageUpdate = now;
+        if (currentPage == PAGE_HOME) {
+            needsRedraw = true;
+        }
+        return;
+    }
+
+    if (now - lastMoodMessageUpdate >= MOOD_MESSAGE_INTERVAL) {
+        String newMessage = getMoodMessage(mood);
+        if (newMessage == currentMoodMessage) {
+            newMessage = getMoodMessage(mood);
+        }
+        currentMoodMessage = newMessage;
+        lastMoodForMessage = mood;
+        lastMoodMessageUpdate = now;
+        if (currentPage == PAGE_HOME) {
+            needsRedraw = true;
+        }
+    }
+}
+
 float getMoodXPModifier(MoodState mood) {
     switch (mood) {
         case MOOD_EXCITED: return 2.0f;    // +100% XP! (best)
@@ -360,45 +759,36 @@ void drawStatusBar(int x, int y, const char* label, int value, uint16_t color) {
     M5.Display.printf("%d%%", value);
 }
 
-void drawBigNeko(int x, int y, int frame) {
+void drawBigNekoFrame(int x, int y, const char* frameText) {
+    if (!frameText) {
+        return;
+    }
     M5.Display.setTextColor(COLOR_NEKO);
     M5.Display.setTextSize(3);  // TAMANHO 3 = MEGA GATINHO!
-    
-    // Desenhar gatinho com evolução baseada no level
-    const char** currentFrames = getCurrentNekoFrames();
-    String frameText = String(currentFrames[frame % 4]);
+
     int lines = 0;
     int startY = y;
-    
-    // Split por linhas
     int idx = 0;
-    while (idx < frameText.length()) {
+    while (frameText[idx] != '\0') {
         String line = "";
-        while (idx < frameText.length() && frameText[idx] != '\n') {
+        while (frameText[idx] != '\0' && frameText[idx] != '\n') {
             line += frameText[idx++];
         }
-        idx++; // Skip \n
-        
+        if (frameText[idx] == '\n') {
+            idx++;
+        }
         M5.Display.setCursor(x, startY + lines * 24);
         M5.Display.print(line);
         lines++;
     }
 }
 
-void drawFooter(const char* help) {
-    M5.Display.fillRect(0, SCREEN_HEIGHT - 12, SCREEN_WIDTH, 12, COLOR_PANEL);
-    M5.Display.setTextColor(COLOR_HIGHLIGHT);
-    M5.Display.setTextSize(1);
-    M5.Display.setCursor(2, SCREEN_HEIGHT - 10);
-    M5.Display.print(help);
-}
-
 void drawHomePage() {
-    M5.Display.fillScreen(COLOR_BG);
+    M5.Display.fillScreen(colorBg);
     
     // Linha 1: Level, XP e Uptime (sem título)
     M5.Display.setTextSize(1);
-    M5.Display.setTextColor(COLOR_HIGHLIGHT);
+    M5.Display.setTextColor(colorHighlight);
     M5.Display.setCursor(5, 5);
     M5.Display.printf("Lv:%d", level);
     M5.Display.setCursor(45, 5);
@@ -414,51 +804,76 @@ void drawHomePage() {
     
     // Nome do pet (editável via settings)
     M5.Display.setTextSize(1);
-    M5.Display.setTextColor(COLOR_TEXT);
+    M5.Display.setTextColor(colorText);
     M5.Display.setCursor(5, 17);
     M5.Display.print(petName);
     
-    // Mood indicator (emoji only, COM MAIS ESPAÇO)
+    // Age indicator (below name) - +3px padding
+    uint64_t ageSecondsTotal = petAgeSeconds;
+    int ageDays = static_cast<int>(ageSecondsTotal / 86400ULL);
+    int ageHours = static_cast<int>((ageSecondsTotal % 86400ULL) / 3600ULL);
+    int ageMinutes = static_cast<int>((ageSecondsTotal % 3600ULL) / 60ULL);
+    M5.Display.setTextColor(colorHighlight);
+    M5.Display.setCursor(5, 29);
+    if (ageDays > 0) {
+        M5.Display.printf("Age: %dd %dh", ageDays, ageHours);
+    } else if (ageHours > 0) {
+        M5.Display.printf("Age: %dh %dm", ageHours, ageMinutes);
+    } else {
+        M5.Display.printf("Age: %dm", ageMinutes);
+    }
+    
+    // Weight indicator (below age) - +3px padding
+    M5.Display.setTextColor(colorHighlight);
+    M5.Display.setCursor(5, 41);
+    M5.Display.printf("WT: %dkg", weight);
+    
+    // Mood indicator (below weight) - +3px padding
     MoodState currentMood = getCurrentMood();
     M5.Display.setTextSize(1);
     M5.Display.setTextColor(getMoodColor(currentMood));
-    M5.Display.setCursor(5, 29);
+    M5.Display.setCursor(5, 53);
     M5.Display.printf("Mood: %s", getMoodEmoji(currentMood).c_str());
-    
-    // Age indicator (dias baseado em uptime)
-    unsigned long ageSeconds = (millis() - sessionStartTime) / 1000;
-    int ageDays = ageSeconds / 86400;
-    int ageHours = (ageSeconds % 86400) / 3600;
-    M5.Display.setTextColor(COLOR_HIGHLIGHT);
-    M5.Display.setCursor(5, 41);  // +12px de espaço após mood
-    if (ageDays > 0) {
-        M5.Display.printf("Age: %dd %dh", ageDays, ageHours);
-    } else {
-        M5.Display.printf("Age: %dh", ageHours);
-    }
     
     // Desenhar gatinho HACKER MEGA no centro
     int nekoY = 38;
-    drawBigNeko(70, nekoY, nekoFrame);
+    int stageFrameCount = 0;
+    const NekoAnimationDefinition* activeAnim = nekoAnimationState.active ? nekoAnimationState.active : &NEKO_ANIM_IDLE;
+    const char** stageFrames = getStageFrames(activeAnim, stageFrameCount);
+    const char* frameText = nullptr;
+    if (stageFrames && stageFrameCount > 0) {
+        frameText = stageFrames[nekoAnimationState.frameIndex % stageFrameCount];
+    } else {
+        const char** fallback = getCurrentNekoFrames();
+        frameText = fallback ? fallback[0] : nullptr;
+    }
+    drawBigNekoFrame(70, nekoY, frameText);
     
-    // Mood message (bubble BELOW cat)
-    String moodMsg = getMoodMessage(currentMood);
-    M5.Display.setTextSize(1);
-    M5.Display.setTextColor(getMoodColor(currentMood));
-    int msgWidth = moodMsg.length() * 6;
-    int msgX = 70 + (60 - msgWidth) / 2;  // Centered below cat
-    M5.Display.setCursor(msgX, nekoY + 72 + 3);  // Below cat (72 = height, +3 spacing)
-    M5.Display.print(moodMsg);
-    
-    // Status bars no canto esquerdo, alinhados com o gatinho
+    // Status bars - 5 bars total (F, J, E, DS, CL)
     int barWidth = 30;   // Barras pequenas (30px)
     int barHeight = 6;   // Altura 6px
-    int spacing = 10;    // Espaçamento entre barras
+    int spacing = 9;     // Espaçamento entre barras (reduzido para caber 5)
     
-    // Alinhar com o centro do gatinho (gatinho tamanho 3 = ~24px altura)
-    int nekoHeight = 24;
-    int totalStatsHeight = (barHeight * 3) + (spacing * 2); // 38px
-    int statusY = nekoY + (nekoHeight / 2) - (totalStatsHeight / 2) + 4; // Centralizado com o gatinho (+4px espaço extra)
+    // Start below Mood indicator (+3px more padding)
+    int statusY = 67;  // Fixed position below mood
+    
+    // Remover Tamagotchi indicators daqui - vão após as barras F/J/E
+    
+    // Poop indicators (draw poops on screen)
+    for (int i = 0; i < poopCount && i < 3; i++) {
+        M5.Display.setTextColor(0x7A00);  // Brown
+        M5.Display.setCursor(140 + (i * 15), 95);
+        M5.Display.print("@");
+    }
+    
+    // Attention indicator (blinking)
+    if (needsAttention && alertVisible) {
+        M5.Display.setTextColor(COLOR_STAT_BAD);
+        M5.Display.setTextSize(2);
+        M5.Display.setCursor(200, 20);
+        M5.Display.print("!");
+        M5.Display.setTextSize(1);
+    }
     
     uint16_t hungerColor = hunger > 60 ? COLOR_STAT_GOOD : (hunger > 30 ? COLOR_STAT_OK : COLOR_STAT_BAD);
     uint16_t happyColor = happiness > 60 ? COLOR_STAT_GOOD : (happiness > 30 ? COLOR_STAT_OK : COLOR_STAT_BAD);
@@ -467,7 +882,7 @@ void drawHomePage() {
     M5.Display.setTextSize(1);
     M5.Display.setTextColor(COLOR_TEXT);
     
-    // Food (com flash se < 20%)
+    // Bar 1: Food (com flash se < 20%)
     bool hungerLow = hunger < 20;
     M5.Display.setCursor(5, statusY);
     M5.Display.print("F:");
@@ -476,8 +891,9 @@ void drawHomePage() {
     M5.Display.setCursor(50, statusY);
     M5.Display.printf("%d", hunger);
     
-    // Joy (com flash se < 20%)
+    // Bar 2: Joy (com flash se < 20%)
     bool happinessLow = happiness < 20;
+    M5.Display.setTextColor(COLOR_TEXT);
     M5.Display.setCursor(5, statusY + spacing);
     M5.Display.print("J:");
     M5.Display.fillRect(17, statusY + spacing + 1, (happiness * barWidth) / 100, barHeight, happinessLow && !alertVisible ? COLOR_STAT_BAD : happyColor);
@@ -485,14 +901,42 @@ void drawHomePage() {
     M5.Display.setCursor(50, statusY + spacing);
     M5.Display.printf("%d", happiness);
     
-    // Energy (com flash se < 20%)
+    // Bar 3: Energy (com flash se < 20%)
     bool energyLow = energy < 20;
+    M5.Display.setTextColor(COLOR_TEXT);
     M5.Display.setCursor(5, statusY + spacing * 2);
     M5.Display.print("E:");
     M5.Display.fillRect(17, statusY + spacing * 2 + 1, (energy * barWidth) / 100, barHeight, energyLow && !alertVisible ? COLOR_STAT_BAD : energyColor);
     M5.Display.drawRect(17, statusY + spacing * 2 + 1, barWidth, barHeight, COLOR_PANEL);
     M5.Display.setCursor(50, statusY + spacing * 2);
     M5.Display.printf("%d", energy);
+    
+    // Bar 4: Discipline (NEW BAR)
+    uint16_t disciplineColor = discipline > 60 ? COLOR_STAT_GOOD : (discipline > 30 ? COLOR_STAT_OK : COLOR_STAT_BAD);
+    M5.Display.setTextColor(COLOR_TEXT);
+    M5.Display.setCursor(5, statusY + spacing * 3);
+    M5.Display.print("DS:");
+    M5.Display.fillRect(20, statusY + spacing * 3 + 1, (discipline * barWidth) / 100, barHeight, disciplineColor);
+    M5.Display.drawRect(20, statusY + spacing * 3 + 1, barWidth, barHeight, COLOR_PANEL);
+    M5.Display.setCursor(53, statusY + spacing * 3);
+    M5.Display.printf("%d", discipline);
+    
+    // Bar 5: Hygiene/Clean (NEW BAR)
+    uint16_t hygieneColor = hygiene > 60 ? COLOR_STAT_GOOD : (hygiene > 30 ? COLOR_STAT_OK : COLOR_STAT_BAD);
+    M5.Display.setTextColor(COLOR_TEXT);
+    M5.Display.setCursor(5, statusY + spacing * 4);
+    M5.Display.print("CL:");
+    M5.Display.fillRect(20, statusY + spacing * 4 + 1, (hygiene * barWidth) / 100, barHeight, hygieneColor);
+    M5.Display.drawRect(20, statusY + spacing * 4 + 1, barWidth, barHeight, COLOR_PANEL);
+    M5.Display.setCursor(53, statusY + spacing * 4);
+    M5.Display.printf("%d", hygiene);
+    
+    // Sick indicator (below all bars)
+    if (isSick) {
+        M5.Display.setTextColor(COLOR_STAT_BAD);
+        M5.Display.setCursor(5, statusY + spacing * 5);
+        M5.Display.print("SICK!");
+    }
     
     // Alertas para stats baixos (<20%) - COM BLINK - ABAIXO DAS BARRAS
     if (alertVisible) {
@@ -504,18 +948,28 @@ void drawHomePage() {
         if (alert.length() > 0) {
             M5.Display.setTextSize(1);
             M5.Display.setTextColor(COLOR_STAT_BAD);
-            // Posicionar logo abaixo da última barra (Energy)
-            int alertY = statusY + (spacing * 2) + barHeight + 8;
+            // Posicionar logo abaixo da última barra (CL) ou SICK
+            int alertY = statusY + (spacing * 5) + (isSick ? 10 : 0);
             M5.Display.setCursor(5, alertY);
             M5.Display.print(alert);
         }
     }
-    
-    drawFooter("ESC=Menu | Space=Feed | O=Play");
+
+    // Mood message no rodapé (substitui antigo footer)
+    String moodMsg = currentMoodMessage.length() > 0 ? currentMoodMessage : getMoodMessage(currentMood);
+    int msgWidth = moodMsg.length() * 6;
+    int footerHeight = 12;
+    int footerY = SCREEN_HEIGHT - footerHeight;
+    M5.Display.fillRect(0, footerY, SCREEN_WIDTH, footerHeight, colorBg);
+    M5.Display.setTextSize(1);
+    M5.Display.setTextColor(getMoodColor(currentMood));
+    int msgX = max(0, (SCREEN_WIDTH - msgWidth) / 2);
+    M5.Display.setCursor(msgX, footerY + 2);
+    M5.Display.print(moodMsg);
 }
 
 void drawMenuPage() {
-    M5.Display.fillScreen(COLOR_BG);
+    M5.Display.fillScreen(colorBg);
     
     // Título
     M5.Display.setTextSize(2);
@@ -548,11 +1002,10 @@ void drawMenuPage() {
         M5.Display.print(menuItems[i]);
     }
     
-    drawFooter(";=Up .=Down Enter=Select ESC=Back");
 }
 
 void drawWiFiScanner() {
-    M5.Display.fillScreen(COLOR_BG);
+    M5.Display.fillScreen(colorBg);
     
     // Título
     M5.Display.setTextSize(2);
@@ -605,11 +1058,10 @@ void drawWiFiScanner() {
         }
     }
     
-    drawFooter("Space=Scan ;.=Nav ESC=Back");
 }
 
 void drawBluetoothPage() {
-    M5.Display.fillScreen(COLOR_BG);
+    M5.Display.fillScreen(colorBg);
     
     M5.Display.setTextSize(2);
     M5.Display.setTextColor(COLOR_NEKO);
@@ -637,7 +1089,6 @@ void drawBluetoothPage() {
         M5.Display.print(items[i]);
     }
     
-    drawFooter(";.=Nav Enter=Select ESC=Back");
 }
 
 void drawToolsPage() {
@@ -669,38 +1120,56 @@ void drawToolsPage() {
         M5.Display.print(items[i]);
     }
     
-    drawFooter(";.=Nav Enter=Select ESC=Back");
 }
 
 void drawSettingsPage() {
     M5.Display.fillScreen(COLOR_BG);
-    
+
     M5.Display.setTextSize(2);
-    M5.Display.setTextColor(COLOR_NEKO);
-    M5.Display.setCursor(40, 5);
-    M5.Display.print("Settings");
-    
-    M5.Display.setTextColor(COLOR_TEXT);
-    M5.Display.setTextSize(1);
-    M5.Display.setCursor(10, 30);
-    M5.Display.print("Brightness: 50%");
-    M5.Display.setCursor(10, 45);
-    M5.Display.print("Sound: Enabled");
-    M5.Display.setCursor(10, 60);
-    M5.Display.printf("Pet Name: %s", petName.c_str());
-    M5.Display.setCursor(10, 75);
-    M5.Display.print("Auto-save: On");
-    
     M5.Display.setTextColor(COLOR_HIGHLIGHT);
-    M5.Display.setCursor(10, 95);
-    M5.Display.print("Firmware: v2.1.0");
-    M5.Display.setCursor(10, 107);
-    
-    // RAM livre
-    uint32_t freeHeap = ESP.getFreeHeap();
-    M5.Display.printf("Free RAM: %dKB", freeHeap / 1024);
-    
-    drawFooter("ESC=Back");
+    M5.Display.setCursor(35, 5);
+    M5.Display.print("Color Setup");
+
+    M5.Display.setTextSize(1);
+    M5.Display.setTextColor(COLOR_TEXT);
+    M5.Display.setCursor(10, 25);
+    M5.Display.print(";/. move  ,/ change");
+    M5.Display.setCursor(10, 37);
+    M5.Display.print("Colors persist via Pet Settings");
+
+    const char* labels[4] = {"Background", "Neko", "Highlight", "Text"};
+    const char* names[4]  = {
+        BG_COLOR_NAMES[bgColorIndex],
+        NEKO_COLOR_NAMES[nekoColorIndex],
+        HIGHLIGHT_COLOR_NAMES[highlightColorIndex],
+        TEXT_COLOR_NAMES[textColorIndex]
+    };
+    const uint16_t values[4] = {
+        COLOR_BG,
+        COLOR_NEKO,
+        COLOR_HIGHLIGHT,
+        COLOR_TEXT
+    };
+
+    int startY = 50;
+    int itemHeight = 18;
+    for (int i = 0; i < 4; ++i) {
+        int y = startY + i * itemHeight;
+        bool selected = (i == settingsSelection);
+        if (selected) {
+            M5.Display.fillRoundRect(5, y - 3, SCREEN_WIDTH - 10, 16, 4, COLOR_HIGHLIGHT);
+            M5.Display.setTextColor(COLOR_BG);
+        } else {
+            M5.Display.setTextColor(COLOR_TEXT);
+        }
+        M5.Display.setCursor(10, y);
+        String line = String(labels[i]) + ": " + names[i] + " " + colorToHex(values[i]);
+        M5.Display.print(line);
+    }
+
+    M5.Display.setTextColor(COLOR_TEXT);
+    M5.Display.setCursor(10, 115);
+    M5.Display.print("ESC=Back");
 }
 
 // ==================== FUNÇÕES DE NAVEGAÇÃO ====================
@@ -722,6 +1191,7 @@ void handleHomeInput(char key) {
         MoodState oldMood = getCurrentMood();
         hunger = min(100, hunger + 20);
         happiness = min(100, happiness + 5);
+        weight = min(30, weight + 1);  // Increase weight
         
         // XP com mood modifier
         int baseXP = 2;
@@ -758,6 +1228,7 @@ void handleHomeInput(char key) {
         MoodState oldMood = getCurrentMood();
         happiness = min(100, happiness + 15);
         energy = max(0, energy - 10);
+        weight = max(5, weight - 1);  // Decrease weight
         
         // XP com mood modifier
         int baseXP = 3;
@@ -805,6 +1276,97 @@ void handleHomeInput(char key) {
             M5.Display.print("Sweet dreams~");
         }
         delay(1000);
+        
+        savePetData();
+        needsRedraw = true;
+    }
+    // C ou c = Clean (limpar cocô)
+    else if (key == 'c' || key == 'C') {
+        if (poopCount > 0) {
+            poopCount = 0;
+            hygiene = min(100, hygiene + 20);
+            happiness = min(100, happiness + 5);
+            
+            // Feedback de limpeza
+            M5.Display.fillRect(70, 35, 100, 30, COLOR_BG);
+            M5.Display.setTextColor(COLOR_STAT_GOOD);
+            M5.Display.setTextSize(1);
+            M5.Display.setCursor(75, 38);
+            M5.Display.print("*CLEAN*");
+            M5.Display.setCursor(75, 48);
+            M5.Display.print("All clean nya!");
+            delay(800);
+        } else {
+            // Nada para limpar
+            M5.Display.fillRect(70, 35, 100, 30, COLOR_BG);
+            M5.Display.setTextColor(COLOR_TEXT);
+            M5.Display.setTextSize(1);
+            M5.Display.setCursor(75, 40);
+            M5.Display.print("Already clean!");
+            delay(600);
+        }
+        
+        savePetData();
+        needsRedraw = true;
+    }
+    // M ou m = Medicine (curar doença)
+    else if (key == 'm' || key == 'M') {
+        if (isSick) {
+            isSick = false;
+            happiness = min(100, happiness + 10);
+            
+            // Feedback de medicina
+            M5.Display.fillRect(70, 35, 100, 30, COLOR_BG);
+            M5.Display.setTextColor(COLOR_STAT_GOOD);
+            M5.Display.setTextSize(1);
+            M5.Display.setCursor(75, 38);
+            M5.Display.print("+MEDICINE+");
+            M5.Display.setCursor(75, 48);
+            M5.Display.print("Feeling better!");
+            delay(800);
+        } else {
+            // Não está doente
+            M5.Display.fillRect(70, 35, 100, 30, COLOR_BG);
+            M5.Display.setTextColor(COLOR_TEXT);
+            M5.Display.setTextSize(1);
+            M5.Display.setCursor(75, 40);
+            M5.Display.print("Not sick!");
+            delay(600);
+        }
+        
+        savePetData();
+        needsRedraw = true;
+    }
+    // T ou t = Train (treinar disciplina)
+    else if (key == 't' || key == 'T') {
+        if (discipline < 100) {
+            discipline = min(100, discipline + 10);
+            energy = max(0, energy - 5);
+            
+            int baseXP = 5;
+            int earnedXP = (int)(baseXP * getMoodXPModifier(getCurrentMood()));
+            experience += earnedXP;
+            
+            // Feedback de treino
+            M5.Display.fillRect(70, 35, 100, 30, COLOR_BG);
+            M5.Display.setTextColor(COLOR_HIGHLIGHT);
+            M5.Display.setTextSize(1);
+            M5.Display.setCursor(75, 38);
+            M5.Display.print("*TRAINING*");
+            M5.Display.setCursor(75, 48);
+            M5.Display.printf("Good! +%dXP", earnedXP);
+            delay(800);
+        } else {
+            // Disciplina máxima
+            M5.Display.fillRect(70, 35, 100, 30, COLOR_BG);
+            M5.Display.setTextColor(COLOR_TEXT);
+            M5.Display.setTextSize(1);
+            M5.Display.setCursor(75, 38);
+            M5.Display.print("Max discipline!");
+            M5.Display.setCursor(75, 48);
+            M5.Display.print("Perfect pet!");
+            delay(600);
+        }
         
         savePetData();
         needsRedraw = true;
@@ -1026,9 +1588,60 @@ void handleToolsInput(char key) {
 }
 
 void handleSettingsInput(char key) {
+    auto cycleIndex = [](int current, int count, bool forward) {
+        if (forward) {
+            return (current + 1) % count;
+        }
+        return (current - 1 + count) % count;
+    };
+
+    auto applyAndSave = [&]() {
+        applyColorPalette();
+        savePetData();
+        needsRedraw = true;
+    };
+
     if (key == 0x1B || key == '`') {
         currentPage = PAGE_MENU;
         needsRedraw = true;
+    } else if (key == ';') {
+        settingsSelection = (settingsSelection - 1 + 4) % 4;
+        needsRedraw = true;
+    } else if (key == '.') {
+        settingsSelection = (settingsSelection + 1) % 4;
+        needsRedraw = true;
+    } else if (key == '[' || key == '{' || key == 'a' || key == 'A' || key == ',' || key == '<') {
+        switch (settingsSelection) {
+            case 0:
+                bgColorIndex = cycleIndex(bgColorIndex, BG_COLOR_COUNT, false);
+                break;
+            case 1:
+                nekoColorIndex = cycleIndex(nekoColorIndex, NEKO_COLOR_COUNT, false);
+                break;
+            case 2:
+                highlightColorIndex = cycleIndex(highlightColorIndex, HIGHLIGHT_COLOR_COUNT, false);
+                break;
+            case 3:
+                textColorIndex = cycleIndex(textColorIndex, TEXT_COLOR_COUNT, false);
+                break;
+        }
+        applyAndSave();
+    } else if (key == ']' || key == '}' || key == 'd' || key == 'D' || key == '/' || key == '?') {
+        switch (settingsSelection) {
+            case 0:
+                bgColorIndex = cycleIndex(bgColorIndex, BG_COLOR_COUNT, true);
+                break;
+            case 1:
+                nekoColorIndex = cycleIndex(nekoColorIndex, NEKO_COLOR_COUNT, true);
+                break;
+            case 2:
+                highlightColorIndex = cycleIndex(highlightColorIndex, HIGHLIGHT_COLOR_COUNT, true);
+                break;
+            case 3:
+                textColorIndex = cycleIndex(textColorIndex, TEXT_COLOR_COUNT, true);
+                break;
+        }
+        applyAndSave();
     }
 }
 
@@ -1043,6 +1656,17 @@ void savePetData() {
     preferences.putInt("level", level);
     preferences.putInt("experience", experience);
     preferences.putString("petName", petName);
+    // Tamagotchi features
+    preferences.putInt("weight", weight);
+    preferences.putInt("discipline", discipline);
+    preferences.putInt("hygiene", hygiene);
+    preferences.putBool("isSick", isSick);
+    preferences.putInt("poopCount", poopCount);
+    preferences.putInt("bgColorIdx", bgColorIndex);
+    preferences.putInt("nekoColorIdx", nekoColorIndex);
+    preferences.putInt("highlightColorIdx", highlightColorIndex);
+    preferences.putInt("textColorIdx", textColorIndex);
+    preferences.putULong64("ageSeconds", petAgeSeconds);
     preferences.end();
     Serial.println("✓ Pet data saved to flash!");
 }
@@ -1055,9 +1679,21 @@ void loadPetData() {
     level = preferences.getInt("level", 0);
     experience = preferences.getInt("experience", 0);
     petName = preferences.getString("petName", "NEKO");
+    // Tamagotchi features
+    weight = preferences.getInt("weight", 10);
+    discipline = preferences.getInt("discipline", 0);
+    hygiene = preferences.getInt("hygiene", 100);
+    isSick = preferences.getBool("isSick", false);
+    poopCount = preferences.getInt("poopCount", 0);
+    bgColorIndex = clampPaletteIndex(preferences.getInt("bgColorIdx", BG_COLOR_DEFAULT_INDEX), BG_COLOR_COUNT, BG_COLOR_DEFAULT_INDEX);
+    nekoColorIndex = clampPaletteIndex(preferences.getInt("nekoColorIdx", NEKO_COLOR_DEFAULT_INDEX), NEKO_COLOR_COUNT, NEKO_COLOR_DEFAULT_INDEX);
+    highlightColorIndex = clampPaletteIndex(preferences.getInt("highlightColorIdx", HIGHLIGHT_COLOR_DEFAULT_INDEX), HIGHLIGHT_COLOR_COUNT, HIGHLIGHT_COLOR_DEFAULT_INDEX);
+    textColorIndex = clampPaletteIndex(preferences.getInt("textColorIdx", TEXT_COLOR_DEFAULT_INDEX), TEXT_COLOR_COUNT, TEXT_COLOR_DEFAULT_INDEX);
+    petAgeSeconds = preferences.getULong64("ageSeconds", 0);
     preferences.end();
-    Serial.printf("✓ Pet data loaded: %s Lvl=%d XP=%d H=%d Hp=%d E=%d\n", 
-                  petName.c_str(), level, experience, hunger, happiness, energy);
+    applyColorPalette();
+    Serial.printf("✓ Pet data loaded: %s Lvl=%d XP=%d H=%d Hp=%d E=%d W=%dkg D=%d%%\n", 
+                  petName.c_str(), level, experience, hunger, happiness, energy, weight, discipline);
 }
 
 // ==================== SETUP & LOOP ====================
@@ -1111,16 +1747,33 @@ void setup() {
     Serial.printf("✓ Pet loaded at Level %d\n\n", level);
     
     sessionStartTime = millis();  // Iniciar contador de uptime
+    lastAgeTickMillis = sessionStartTime;
     currentPage = PAGE_HOME;
     needsRedraw = true;
-    lastAnimUpdate = millis();
-    lastStatusUpdate = millis();
+    unsigned long initNow = millis();
+    lastStatusUpdate = initNow;
+    lastMoodForMessage = getCurrentMood();
+    currentMoodMessage = getMoodMessage(lastMoodForMessage);
+    lastMoodMessageUpdate = initNow;
 }
 
 void loop() {
     M5.update();
     
     unsigned long now = millis();
+
+    if (lastAgeTickMillis == 0) {
+        lastAgeTickMillis = now;
+    }
+    unsigned long ageDeltaMillis = now - lastAgeTickMillis;
+    if (ageDeltaMillis >= 1000) {
+        uint64_t secondsAdded = ageDeltaMillis / 1000;
+        petAgeSeconds += secondsAdded;
+        lastAgeTickMillis += secondsAdded * 1000;
+        if (currentPage == PAGE_HOME) {
+            needsRedraw = true;
+        }
+    }
     
     // Serial heartbeat every 10 seconds
     if (now - lastSerialHeartbeat > 10000) {
@@ -1129,12 +1782,8 @@ void loop() {
         lastSerialHeartbeat = now;
     }
     
-    // Animar gatinho (500ms = 2 FPS)
-    if (now - lastAnimUpdate > 500 && currentPage == PAGE_HOME) {
-        nekoFrame = (nekoFrame + 1) % 4;
-        lastAnimUpdate = now;
-        needsRedraw = true;
-    }
+    updateNekoAnimation(now);
+    updateMoodMessage(now);
     
     // Blink de alertas (500ms on/off)
     if (now - lastAlertBlink > 500) {
@@ -1196,11 +1845,42 @@ void loop() {
             delay(2000);
         }
         
+        // Tamagotchi Systems
+        // Poop generation (every 2 minutes if hygiene < 50)
+        if (hygiene < 50 && now - lastPoopTime > 120000 && poopCount < 3) {
+            poopCount++;
+            hygiene = max(0, hygiene - 10);
+            lastPoopTime = now;
+            needsAttention = true;
+            lastCallTime = now;
+        }
+        
+        // Weight changes
+        // (handled in actions - eating increases, playing decreases)
+        
+        // Sickness check (low hygiene or multiple low stats)
+        if (!isSick && (hygiene < 20 || (hunger < 20 && energy < 20))) {
+            isSick = true;
+            needsAttention = true;
+            lastCallTime = now;
+        }
+        
+        // Hygiene decay if has poop
+        if (poopCount > 0) {
+            hygiene = max(0, hygiene - 1);
+        }
+        
         // Save data every 30 seconds
         savePetData();
         
         lastStatusUpdate = now;
         needsRedraw = true;
+    }
+    
+    // Attention call blink (pet needs care)
+    if (needsAttention && now - lastCallTime > 10000) {
+        // Reset attention after 10 seconds
+        needsAttention = false;
     }
     
     // Redesenhar tela apenas quando necessário
